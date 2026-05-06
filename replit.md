@@ -1,45 +1,60 @@
-# [Project name]
+# IOR · Gestão Pro
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Sistema de gestão completo para o Instituto de Reflexologia e Pesquisa (IOR). Gerencia alunos, cursos, CRM de leads, financeiro, checklist, lembretes WhatsApp e painel pedagógico.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- `pnpm --filter @workspace/ior-gestao run dev` — frontend (porta dinâmica via PORT)
+- `pnpm --filter @workspace/api-server run dev` — API server (porta 8080)
+- `pnpm run typecheck` — typecheck completo de todos os pacotes
+- `pnpm run build` — build completo
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
+- Frontend: React + Vite + recharts (sem Tailwind no componente principal)
 - API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- DB: PostgreSQL + Drizzle ORM (não utilizado pelo frontend ainda — dados em memória)
+- Build: esbuild (CJS bundle para API)
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/ior-gestao/src/IOR.jsx` — componente principal (todo o SaaS em um arquivo)
+- `artifacts/ior-gestao/src/App.tsx` — entry point que monta o IOR
+- `artifacts/api-server/src/routes/` — rotas da API
+- `lib/api-spec/openapi.yaml` — contrato da API
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- O componente IOR.jsx é um SPA monolítico com state interno (useState), sem backend externo — dados seed em memória.
+- Roteamento feito via `page` state interno (sem React Router/wouter no SaaS).
+- CSS injetado via componente `<GS/>` (tag `<style>` no DOM) com variáveis CSS.
+- Recharts para gráficos de barras e linhas no dashboard e financeiro.
+- App responsivo com sidebar desktop + bottom nav mobile.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Dashboard com receita total, leads em aberto, gráfico de vendas por tipo
+- CRM de Leads com kanban e lista, conversão automática para aluno
+- CRM de Produtos com pipeline de pedidos
+- Gestão de Alunos com controle de parcelas e WhatsApp
+- Cursos & Calendário com lista de espera
+- Financeiro com vendas, gráfico e metas
+- Checklist com SLA por prioridade
+- Lembretes WhatsApp com modelos
+- Painel Pedagógico por aluno
+- Permissões por perfil de acesso
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- Aplicativo em português (Brasil)
+- Layout com tema claro, fontes Playfair Display + DM Sans
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- O arquivo IOR.jsx não deve ser convertido para TSX (ficaria com erros de type devido ao CSS inline complexo)
+- Dados são em memória — ao recarregar a página os dados seed são restaurados
 
 ## Pointers
 
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- Ver skill `pnpm-workspace` para estrutura do monorepo

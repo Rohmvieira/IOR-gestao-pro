@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "IOR · Gestão Pro"
+version = "1.0.0"
+id = "artifacts/ior-gestao"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22906
+
+[services.development]
+run = "pnpm --filter @workspace/ior-gestao run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/ior-gestao", "run", "build" ]
+publicDir = "artifacts/ior-gestao/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22906"
+BASE_PATH = "/"
