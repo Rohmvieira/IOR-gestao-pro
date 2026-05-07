@@ -1,8 +1,8 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useRef } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Legend } from "recharts";
 
 /* ══════════════════════════════════════════════════
-   GLOBAL STYLES — LIGHT THEME
+   GLOBAL STYLES
 ══════════════════════════════════════════════════ */
 function GS() {
   return <style>{`
@@ -11,34 +11,19 @@ function GS() {
     ::-webkit-scrollbar{width:4px;height:4px}
     ::-webkit-scrollbar-thumb{background:rgba(61,133,200,.25);border-radius:99px}
     :root{
-      --bg:#F4F7FB;
-      --surf:#FFFFFF;
-      --card:#FFFFFF;
-      --card2:#F0F4FA;
-      --b:rgba(61,133,200,.14);
-      --bs:rgba(61,133,200,.35);
-      --bl:#3066BE;
-      --bl2:#4A85D8;
-      --pu:#6244B8;
-      --pu2:#8B6EE0;
-      --te:#2B9E98;
-      --am:#C07700;
-      --rd:#D43030;
-      --gn:#1E8A4C;
-      --gl:rgba(48,102,190,.09);
-      --pl:rgba(98,68,184,.09);
-      --tx:#1A2540;
-      --mu:#6B7A99;
-      --mu2:#9AAAC0;
-      --shadow:0 2px 14px rgba(30,40,80,.09);
-      --shadow-md:0 4px 24px rgba(30,40,80,.13);
+      --bg:#F4F7FB;--surf:#FFFFFF;--card:#FFFFFF;--card2:#F0F4FA;
+      --b:rgba(61,133,200,.14);--bs:rgba(61,133,200,.35);
+      --bl:#3066BE;--bl2:#4A85D8;--pu:#6244B8;--pu2:#8B6EE0;
+      --te:#2B9E98;--am:#C07700;--rd:#D43030;--gn:#1E8A4C;
+      --gl:rgba(48,102,190,.09);--pl:rgba(98,68,184,.09);
+      --tx:#1A2540;--mu:#6B7A99;--mu2:#9AAAC0;
+      --shadow:0 2px 14px rgba(30,40,80,.09);--shadow-md:0 4px 24px rgba(30,40,80,.13);
       --bnh:60px;
     }
     @keyframes up  {from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
     @keyframes sr  {from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:translateX(0)}}
     @keyframes su  {from{opacity:0;transform:translateY(100%)}to{opacity:1;transform:translateY(0)}}
     @keyframes sp  {to{transform:rotate(360deg)}}
-    @keyframes ik  {from{transform:scaleX(0);transform-origin:left}to{transform:scaleX(1)}}
     body{background:var(--bg);font-family:'DM Sans',sans-serif;color:var(--tx)}
     .g2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
     .gdash{display:grid;grid-template-columns:1.5fr 1fr;gap:16px;margin-bottom:16px}
@@ -54,6 +39,8 @@ function GS() {
     .bni{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;background:transparent;border:none;color:var(--mu);transition:color .15s}
     .bni.a{color:var(--bl)}
     .mob{display:none!important}.dsk{display:flex!important}
+    .drag-over{background:#EEF4FF!important;border:2px dashed var(--bl)!important}
+    .dragging{opacity:.4!important}
     @media(max-width:768px){
       .g2,.gdash,.gwa{grid-template-columns:1fr!important}
       .mob{display:flex!important}.dsk{display:none!important}
@@ -76,16 +63,16 @@ const SRCS     = ["Instagram","WhatsApp","Indicação","Site","Google","Facebook
 const PAYS     = ["PIX","Cartão Crédito","Cartão Débito","Boleto","Transferência"];
 const LOSSES   = ["Preço alto","Sem tempo","Escolheu concorrente","Sem resposta","Desistiu"];
 const TEAM     = ["Ana Lima","Carla Reis","Coord. Pesquisa","Secretaria","Financeiro","Você"];
-const MODULES  = ["Dashboard","CRM Leads","CRM Produtos","Alunos","Cursos","Financeiro","Checklist","WA Lembretes","Pedagógico","Permissões"];
+const MODULES  = ["Dashboard","CRM Leads","CRM Produtos","Alunos","Cursos","Financeiro","Checklist","WA Lembretes","Pedagógico","Permissões","Social Media"];
 const ROLES    = ["Proprietária","Financeiro","Secretaria","Professor(a)","Assistente"];
 const MOPT     = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 const MNS      = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+const SOCIAL_CATS = ["Reflexologia","Bem-estar","Curso/Workshop","Depoimento","Dica","Evento","Bastidores"];
 
 const SCL  = {"Leads Frios":"#9AAAC0","Negociação":"#C07700","Espera":"#3066BE","Fechado":"#1E8A4C","Perdido":"#D43030"};
 const PCL  = {"Nota Fiscal":"#9AAAC0","Embalar":"#C07700","Pronto":"#2B9E98","Enviado":"#3066BE","Fechado":"#1E8A4C"};
 const TCL  = {"Curso":"#3066BE","Workshop":"#6244B8","Produto":"#2B9E98","Atendimento":"#C07700"};
 const KCL  = {"Curso":"#3066BE","Workshop":"#6244B8","Estágio":"#2B9E98","Ambulatório":"#C07700"};
-const IPED = ["Apostila recebida","Material entregue","Avaliação teórica","Estágio concluído","Certificado emitido","Relatório entregue"];
 const IPERMS_INIT = {
   "Proprietária": MODULES.reduce((a,m)=>({...a,[m]:true}),{}),
   "Financeiro":   MODULES.reduce((a,m)=>({...a,[m]:["Financeiro","Dashboard"].includes(m)}),{}),
@@ -98,21 +85,21 @@ const IPERMS_INIT = {
    SEED DATA
 ══════════════════════════════════════════════════ */
 const SEED_COURSES = [
-  {id:101,name:"Reflexologia Podal – Módulo I",  type:"Curso",    date:"2025-03-15",end:"2025-03-16",modality:"Presencial",value:980, capacity:12,enrolled:[201,202,203],waitlist:[204],instructor:"Profa. Ana Lima",  desc:"Fundamentos da reflexologia podal pelo Método IOR."},
-  {id:102,name:"Workshop Reflexologia Facial",   type:"Workshop", date:"2025-04-05",end:"2025-04-05",modality:"Presencial",value:450, capacity:8, enrolled:[202,205],  waitlist:[],    instructor:"Profa. Carla Reis",desc:"Técnicas reflexológicas aplicadas ao rosto."},
-  {id:103,name:"Reflexologia Podal – Módulo II", type:"Curso",    date:"2025-05-10",end:"2025-05-11",modality:"Online",    value:1200,capacity:20,enrolled:[201],       waitlist:[203,206],instructor:"Profa. Ana Lima",  desc:"Aprofundamento: patologias e protocolos avançados."},
-  {id:104,name:"Estágio Clínico – Turma A",      type:"Estágio",  date:"2025-04-12",end:"2025-05-12",modality:"Presencial",value:600, capacity:6, enrolled:[205,206],  waitlist:[],    instructor:"Profa. Ana Lima",  desc:"Prática supervisionada em clínica real."},
-  {id:105,name:"Ambulatório de Pesquisa",         type:"Ambulatório",date:"2025-04-20",end:"2025-09-20",modality:"Presencial",value:0,capacity:10,enrolled:[202,203,204],waitlist:[],   instructor:"Coord. Pesquisa",  desc:"Programa de pesquisa aplicada."},
-  {id:106,name:"Mapeamento Reflexológico",        type:"Workshop", date:"2025-06-07",end:"2025-06-08",modality:"Híbrido",  value:650, capacity:15,enrolled:[],           waitlist:[201,202,205],instructor:"Profa. Carla Reis",desc:"Workshop intensivo de leitura dos pontos reflexos."},
+  {id:101,name:"Reflexologia Podal – Módulo I",  type:"Curso",    date:"2025-03-15",end:"2025-03-16",modality:"Presencial",value:980, capacity:12,enrolled:[201,202,203],waitlist:[204],instructor:"Profa. Ana Lima",  desc:"Fundamentos da reflexologia podal pelo Método IOR.",enrollmentDeadline:"2025-03-01",checklist:["Apostila recebida","Material entregue","Avaliação teórica","Estágio concluído","Certificado emitido"]},
+  {id:102,name:"Workshop Reflexologia Facial",   type:"Workshop", date:"2025-04-05",end:"2025-04-05",modality:"Presencial",value:450, capacity:8, enrolled:[202,205],  waitlist:[],    instructor:"Profa. Carla Reis",desc:"Técnicas reflexológicas aplicadas ao rosto.",enrollmentDeadline:"2025-03-25",checklist:["Material entregue","Certificado emitido"]},
+  {id:103,name:"Reflexologia Podal – Módulo II", type:"Curso",    date:"2025-05-10",end:"2025-05-11",modality:"Online",    value:1200,capacity:20,enrolled:[201],       waitlist:[203,206],instructor:"Profa. Ana Lima",  desc:"Aprofundamento: patologias e protocolos avançados.",enrollmentDeadline:"2025-04-25",checklist:["Apostila recebida","Avaliação teórica","Relatório entregue","Certificado emitido"]},
+  {id:104,name:"Estágio Clínico – Turma A",      type:"Estágio",  date:"2025-04-12",end:"2025-05-12",modality:"Presencial",value:600, capacity:6, enrolled:[205,206],  waitlist:[],    instructor:"Profa. Ana Lima",  desc:"Prática supervisionada em clínica real.",enrollmentDeadline:"2025-04-01",checklist:["Material entregue","Estágio concluído","Relatório entregue","Certificado emitido"]},
+  {id:105,name:"Ambulatório de Pesquisa",         type:"Ambulatório",date:"2025-04-20",end:"2025-09-20",modality:"Presencial",value:0,capacity:10,enrolled:[202,203,204],waitlist:[],   instructor:"Coord. Pesquisa",  desc:"Programa de pesquisa aplicada.",enrollmentDeadline:"",checklist:[]},
+  {id:106,name:"Mapeamento Reflexológico",        type:"Workshop", date:"2025-06-07",end:"2025-06-08",modality:"Híbrido",  value:650, capacity:15,enrolled:[],           waitlist:[201,202,205],instructor:"Profa. Carla Reis",desc:"Workshop intensivo de leitura dos pontos reflexos.",enrollmentDeadline:"2025-05-28",checklist:["Material entregue","Certificado emitido"]},
 ];
 
 const SEED_STUDENTS = [
-  {id:201,name:"Adriana Moura",   email:"adriana@mail.com", phone:"11991110001",cpf:"111.111.111-11",city:"São Paulo",    since:"2024-01",courses:[101,103],contract:true, pType:"parcelado",pMethod:"Cartão Crédito",totalValue:3180,installments:12,instValue:265,startMonth:"2024-01",paidMonths:[0,1,2,3,4,5,6,7,8,9],paid:false,certificate:[],interests:[102],notes:"Pontual"},
-  {id:202,name:"Beatriz Nunes",   email:"beatriz@mail.com", phone:"11992220002",cpf:"222.222.222-22",city:"Campinas",     since:"2024-03",courses:[101,102,105],contract:true, pType:"parcelado",pMethod:"PIX",           totalValue:1430,installments:6, instValue:238,startMonth:"2024-03",paidMonths:[0,1,2,3,4,5],paid:false,certificate:[101],interests:[],notes:""},
-  {id:203,name:"Carla Esteves",   email:"carla@mail.com",   phone:"11993330003",cpf:"333.333.333-33",city:"São Paulo",    since:"2023-09",courses:[101,105],contract:false,pType:"avista",   pMethod:"PIX",           totalValue:2600,installments:0, instValue:0,  startMonth:"",         paidMonths:[],paid:true, certificate:[],interests:[103],notes:"Sem contrato"},
-  {id:204,name:"Diana Fonseca",   email:"diana@mail.com",   phone:"21994440004",cpf:"444.444.444-44",city:"Rio de Janeiro",since:"2024-06",courses:[],contract:false,pType:"parcelado",pMethod:"Boleto",        totalValue:980, installments:3, instValue:327,startMonth:"2024-06",paidMonths:[0,1],paid:false,certificate:[],interests:[101],notes:"1 parcela em aberto"},
-  {id:205,name:"Elaine Guimarães",email:"elaine@mail.com",  phone:"11995550005",cpf:"555.555.555-55",city:"Guarulhos",    since:"2024-02",courses:[102,104],contract:true, pType:"avista",   pMethod:"Boleto",        totalValue:1050,installments:0, instValue:0,  startMonth:"",         paidMonths:[],paid:true, certificate:[102],interests:[],notes:""},
-  {id:206,name:"Fernanda Rocha",  email:"fernanda@mail.com",phone:"11996660006",cpf:"666.666.666-66",city:"Sorocaba",     since:"2024-08",courses:[104],contract:true, pType:"parcelado",pMethod:"Boleto",        totalValue:600, installments:3, instValue:200,startMonth:"2024-08",paidMonths:[0],paid:false,certificate:[],interests:[],notes:""},
+  {id:201,name:"Adriana Moura",   email:"adriana@mail.com", phone:"11991110001",cpf:"111.111.111-11",city:"São Paulo",    since:"2024-01",courses:[101,103],contract:true, contractFile:null,pType:"parcelado",pMethod:"Cartão Crédito",totalValue:3180,installments:12,instValue:265,startMonth:"2024-01",paidMonths:[0,1,2,3,4,5,6,7,8,9],paid:false,certificate:[],interests:[102],notes:"Pontual",enrollmentDates:{101:"2024-01-10",103:"2024-02-15"},pedDocs:{}},
+  {id:202,name:"Beatriz Nunes",   email:"beatriz@mail.com", phone:"11992220002",cpf:"222.222.222-22",city:"Campinas",     since:"2024-03",courses:[101,102,105],contract:true, contractFile:null,pType:"parcelado",pMethod:"PIX",           totalValue:1430,installments:6, instValue:238,startMonth:"2024-03",paidMonths:[0,1,2,3,4,5],paid:false,certificate:[101],interests:[],notes:"",enrollmentDates:{101:"2024-03-01",102:"2024-03-05",105:"2024-04-20"},pedDocs:{}},
+  {id:203,name:"Carla Esteves",   email:"carla@mail.com",   phone:"11993330003",cpf:"333.333.333-33",city:"São Paulo",    since:"2023-09",courses:[101,105],contract:false,contractFile:null,pType:"avista",   pMethod:"PIX",           totalValue:2600,installments:0, instValue:0,  startMonth:"",         paidMonths:[],paid:true, certificate:[],interests:[103],notes:"Sem contrato",enrollmentDates:{101:"2023-09-10",105:"2024-04-20"},pedDocs:{}},
+  {id:204,name:"Diana Fonseca",   email:"diana@mail.com",   phone:"21994440004",cpf:"444.444.444-44",city:"Rio de Janeiro",since:"2024-06",courses:[],contract:false,contractFile:null,pType:"parcelado",pMethod:"Boleto",        totalValue:980, installments:3, instValue:327,startMonth:"2024-06",paidMonths:[0,1],paid:false,certificate:[],interests:[101],notes:"1 parcela em aberto",enrollmentDates:{},pedDocs:{}},
+  {id:205,name:"Elaine Guimarães",email:"elaine@mail.com",  phone:"11995550005",cpf:"555.555.555-55",city:"Guarulhos",    since:"2024-02",courses:[102,104],contract:true, contractFile:null,pType:"avista",   pMethod:"Boleto",        totalValue:1050,installments:0, instValue:0,  startMonth:"",         paidMonths:[],paid:true, certificate:[102],interests:[],notes:"",enrollmentDates:{102:"2024-02-10",104:"2024-04-12"},pedDocs:{}},
+  {id:206,name:"Fernanda Rocha",  email:"fernanda@mail.com",phone:"11996660006",cpf:"666.666.666-66",city:"Sorocaba",     since:"2024-08",courses:[104],contract:true, contractFile:null,pType:"parcelado",pMethod:"Boleto",        totalValue:600, installments:3, instValue:200,startMonth:"2024-08",paidMonths:[0],paid:false,certificate:[],interests:[],notes:"",enrollmentDates:{104:"2024-08-01"},pedDocs:{}},
 ];
 
 const SEED_LEADS = [
@@ -125,45 +112,38 @@ const SEED_LEADS = [
 ];
 
 const SEED_PRODUCTS = [
-  {id:401,product:"Kit Básico Reflexologia",   client:"Adriana Moura",   qty:1,value:280,notes:"Inclui manual",stage:"Embalar",    date:"2025-01-26"},
-  {id:402,product:"Livro IOR Método",          client:"Beatriz Nunes",   qty:2,value:150,notes:"",            stage:"Pronto",     date:"2025-01-25"},
-  {id:403,product:"Bastão de Madeira Set",     client:"Carla Esteves",   qty:1,value:95, notes:"SEDEX",        stage:"Enviado",    date:"2025-01-20"},
-  {id:404,product:"Kit Completo Profissional", client:"Diana Fonseca",   qty:1,value:580,notes:"NF pendente",  stage:"Nota Fiscal",date:"2025-01-28"},
+  {id:401,product:"Kit Básico Reflexologia",   client:"Adriana Moura",   qty:1,value:280,notes:"Inclui manual",stage:"Embalar",    date:"2025-01-26",documents:[]},
+  {id:402,product:"Livro IOR Método",          client:"Beatriz Nunes",   qty:2,value:150,notes:"",            stage:"Pronto",     date:"2025-01-25",documents:[]},
+  {id:403,product:"Bastão de Madeira Set",     client:"Carla Esteves",   qty:1,value:95, notes:"SEDEX",        stage:"Enviado",    date:"2025-01-20",documents:[]},
+  {id:404,product:"Kit Completo Profissional", client:"Diana Fonseca",   qty:1,value:580,notes:"NF pendente",  stage:"Nota Fiscal",date:"2025-01-28",documents:[]},
 ];
 
 const SEED_SALES = [
-  // Julho 2024
   {id:501,date:"2024-07-10",studentId:203,desc:"Reflexologia Podal – Módulo I",  value:980, payment:"PIX",           type:"Curso",      notes:""},
   {id:502,date:"2024-07-15",studentId:null,desc:"Kit Básico Reflexologia",       value:280, payment:"PIX",           type:"Produto",    notes:""},
-  {id:503,date:"2024-07-20",studentId:null,desc:"Atendimento Avulso",            value:180, payment:"PIX",           type:"Atendimento", notes:""},
-  // Agosto 2024
+  {id:503,date:"2024-07-20",studentId:null,desc:"Atendimento Avulso",            value:180, payment:"PIX",           type:"Atendimento",notes:""},
   {id:504,date:"2024-08-05",studentId:205,desc:"Workshop Reflexologia Facial",   value:450, payment:"Boleto",        type:"Workshop",   notes:""},
   {id:505,date:"2024-08-12",studentId:null,desc:"Reflexologia Podal – Módulo I", value:980, payment:"PIX",           type:"Curso",      notes:""},
   {id:506,date:"2024-08-20",studentId:null,desc:"Kit Completo Profissional",     value:580, payment:"Cartão Crédito",type:"Produto",    notes:""},
-  {id:507,date:"2024-08-25",studentId:null,desc:"Atendimento Avulso",            value:180, payment:"PIX",           type:"Atendimento", notes:""},
-  // Setembro 2024
+  {id:507,date:"2024-08-25",studentId:null,desc:"Atendimento Avulso",            value:180, payment:"PIX",           type:"Atendimento",notes:""},
   {id:508,date:"2024-09-03",studentId:null,desc:"Reflexologia Podal – Módulo I", value:980, payment:"PIX",           type:"Curso",      notes:""},
   {id:509,date:"2024-09-10",studentId:null,desc:"Estágio Clínico – Turma A",     value:600, payment:"Boleto",        type:"Curso",      notes:""},
   {id:510,date:"2024-09-18",studentId:null,desc:"Apostila Digital+Impressa",     value:270, payment:"PIX",           type:"Produto",    notes:""},
-  // Outubro 2024
   {id:511,date:"2024-10-05",studentId:null,desc:"Reflexologia Podal – Módulo II",value:1200,payment:"Cartão Crédito",type:"Curso",      notes:""},
   {id:512,date:"2024-10-12",studentId:null,desc:"Workshop Reflexologia Facial",   value:450, payment:"PIX",          type:"Workshop",   notes:""},
   {id:513,date:"2024-10-20",studentId:null,desc:"Reflexologia Podal – Módulo I", value:980, payment:"PIX",           type:"Curso",      notes:""},
-  {id:514,date:"2024-10-25",studentId:null,desc:"Atendimento Avulso",            value:360, payment:"PIX",           type:"Atendimento", notes:""},
+  {id:514,date:"2024-10-25",studentId:null,desc:"Atendimento Avulso",            value:360, payment:"PIX",           type:"Atendimento",notes:""},
   {id:515,date:"2024-10-28",studentId:null,desc:"Kit Básico Reflexologia",       value:280, payment:"PIX",           type:"Produto",    notes:""},
-  // Novembro 2024
   {id:516,date:"2024-11-04",studentId:null,desc:"Reflexologia Podal – Módulo I", value:980, payment:"PIX",           type:"Curso",      notes:""},
   {id:517,date:"2024-11-08",studentId:null,desc:"Reflexologia Podal – Módulo II",value:1200,payment:"Cartão Crédito",type:"Curso",      notes:""},
   {id:518,date:"2024-11-14",studentId:null,desc:"Estágio Clínico – Turma A",     value:600, payment:"Boleto",        type:"Curso",      notes:""},
   {id:519,date:"2024-11-18",studentId:null,desc:"Workshop Reflexologia Facial",   value:450, payment:"PIX",          type:"Workshop",   notes:""},
   {id:520,date:"2024-11-22",studentId:null,desc:"Mapeamento Reflexológico",       value:650, payment:"PIX",          type:"Workshop",   notes:""},
   {id:521,date:"2024-11-28",studentId:null,desc:"Kit Completo Profissional",     value:580, payment:"Cartão Crédito",type:"Produto",    notes:""},
-  // Dezembro 2024
   {id:522,date:"2024-12-05",studentId:null,desc:"Reflexologia Podal – Módulo I", value:980, payment:"PIX",           type:"Curso",      notes:""},
   {id:523,date:"2024-12-10",studentId:null,desc:"Ambulatório de Pesquisa",       value:0,   payment:"N/A",           type:"Curso",      notes:"Gratuito"},
   {id:524,date:"2024-12-15",studentId:null,desc:"Workshop Reflexologia Facial",   value:450, payment:"PIX",          type:"Workshop",   notes:""},
   {id:525,date:"2024-12-20",studentId:null,desc:"Apostila Digital+Impressa",     value:270, payment:"PIX",           type:"Produto",    notes:""},
-  // Janeiro 2025
   {id:526,date:"2025-01-06",studentId:201,desc:"Reflexologia Podal – Módulo I",  value:980, payment:"Cartão Crédito",type:"Curso",      notes:""},
   {id:527,date:"2025-01-10",studentId:202,desc:"Reflexologia Podal – Módulo I",  value:980, payment:"PIX",           type:"Curso",      notes:""},
   {id:528,date:"2025-01-15",studentId:203,desc:"Reflexologia Podal – Módulo I",  value:980, payment:"PIX",           type:"Curso",      notes:""},
@@ -173,7 +153,7 @@ const SEED_SALES = [
   {id:532,date:"2025-01-21",studentId:205,desc:"Estágio Clínico – Turma A",      value:600, payment:"Boleto",        type:"Curso",      notes:""},
   {id:533,date:"2025-01-22",studentId:206,desc:"Estágio Clínico – Turma A",      value:600, payment:"Boleto",        type:"Curso",      notes:""},
   {id:534,date:"2025-01-25",studentId:201,desc:"Reflexologia Podal – Módulo II", value:1200,payment:"Cartão Crédito",type:"Curso",      notes:""},
-  {id:535,date:"2025-01-28",studentId:null,desc:"Atendimento Avulso",            value:360, payment:"PIX",           type:"Atendimento", notes:""},
+  {id:535,date:"2025-01-28",studentId:null,desc:"Atendimento Avulso",            value:360, payment:"PIX",           type:"Atendimento",notes:""},
 ];
 
 const SEED_CHECKS = [
@@ -188,7 +168,42 @@ const SEED_TEMPLATES = [
   {id:701,name:"Lembrete Pagamento",  text:"Olá {nome}! Passando para lembrar o valor em aberto referente a {curso}. Regularize para manter seu acesso ativo. Qualquer dúvida estamos à disposição! 🌿"},
   {id:702,name:"Confirmação de Curso",text:"Olá {nome}! Confirmamos sua inscrição em {curso}. Em breve enviaremos mais detalhes! 🎓"},
   {id:703,name:"Lista de Espera",     text:"Olá {nome}! Abrimos vagas para {curso} em {data}. Você tem prioridade na lista de espera. Vamos confirmar? ✨"},
+  {id:704,name:"Lembrete Atraso",     text:"Olá {nome}! Identificamos uma parcela em atraso referente a {curso}. Podemos regularizar? Estamos à disposição para ajudar! 🌿"},
 ];
+
+const SEED_SOCIAL = [];
+
+/* ══════════════════════════════════════════════════
+   HELPERS
+══════════════════════════════════════════════════ */
+function readFile(file){return new Promise(res=>{const r=new FileReader();r.onload=e=>res({name:file.name,type:file.type,data:e.target.result});r.readAsDataURL(file);});}
+function instDueDate(startMonth,idx){
+  if(!startMonth)return null;
+  const [y,m]=startMonth.split("-").map(Number);
+  const d=new Date(y,m-1+idx,1);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+}
+function isOverdue(student){
+  if(student.pType==="avista") return !student.paid;
+  if(student.pType==="parcelado"){
+    if((student.paidMonths||[]).length>=(student.installments||0)) return false;
+    const now=new Date();
+    const curIdx=student.startMonth?((now.getFullYear()-parseInt(student.startMonth.slice(0,4)))*12+(now.getMonth()-(parseInt(student.startMonth.slice(5,7))-1))):0;
+    const ci=Math.max(0,Math.min(curIdx,student.installments-1));
+    return !((student.paidMonths||[]).includes(ci));
+  }
+  return false;
+}
+function isPaid(student){
+  if(student.pType==="avista") return student.paid;
+  return (student.paidMonths||[]).length>=(student.installments||0);
+}
+function confirmedRevenue(students){
+  return students.reduce((sum,s)=>{
+    if(s.pType==="avista") return sum+(s.paid?(+s.totalValue||0):0);
+    return sum+((s.paidMonths||[]).length*(+s.instValue||0));
+  },0);
+}
 
 /* ══════════════════════════════════════════════════
    MICRO COMPONENTS
@@ -231,13 +246,14 @@ function Btn({children,onClick,v="primary",sz="md",disabled,style}){
     danger:{background:"#FEF2F2",color:"var(--rd)",border:"1.5px solid #FECACA",boxShadow:"none"},
     purple:{background:"#F5F1FE",color:"var(--pu)",border:"1.5px solid #DDD0F7",boxShadow:"none"},
     green:{background:"#F0FDF4",color:"var(--gn)",border:"1.5px solid #BBF7D0",boxShadow:"none"},
+    teal:{background:"#F0FDFC",color:"var(--te)",border:"1.5px solid #99F6E4",boxShadow:"none"},
   };
   const SZ={sm:"6px 12px",md:"9px 18px",lg:"12px 24px"};
   return <button onClick={onClick} disabled={disabled} style={{...V[v],borderRadius:9,padding:SZ[sz],fontSize:sz==="sm"?11:13,fontFamily:"DM Sans",fontWeight:600,cursor:disabled?"default":"pointer",opacity:disabled?.5:1,transition:"all .15s",...(style||{})}}>{children}</button>;
 }
-function Modal({title,sub,onClose,children}){
+function Modal({title,sub,onClose,children,wide}){
   return <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(20,30,60,.3)",backdropFilter:"blur(6px)",zIndex:300,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
-    <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:"20px 20px 0 0",padding:22,width:"100%",maxWidth:560,border:"1px solid var(--b)",borderBottom:"none",animation:"su .25s ease",maxHeight:"92vh",overflowY:"auto",boxShadow:"0 -8px 40px rgba(30,40,80,.18)"}}>
+    <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:"20px 20px 0 0",padding:22,width:"100%",maxWidth:wide?720:560,border:"1px solid var(--b)",borderBottom:"none",animation:"su .25s ease",maxHeight:"92vh",overflowY:"auto",boxShadow:"0 -8px 40px rgba(30,40,80,.18)"}}>
       <div style={{width:34,height:4,borderRadius:99,background:"#DDE3EE",margin:"-2px auto 16px"}}/>
       <div style={{display:"flex",justifyContent:"space-between",marginBottom:16}}>
         <div><div style={{fontFamily:"Playfair Display",fontSize:19,fontWeight:700,color:"var(--tx)"}}>{title}</div>{sub&&<div style={{fontSize:12,color:"var(--mu)",marginTop:2}}>{sub}</div>}</div>
@@ -261,54 +277,58 @@ function IAdder({list,selected,onSelect,onAdd,placeholder}){
     </div>}
   </div>;
 }
+function FileUpload({label,file,onFile,accept=".pdf,.doc,.docx"}){
+  const ref=useRef();
+  return <div style={{marginBottom:13}}>
+    {label&&<Lbl>{label}</Lbl>}
+    <div style={{display:"flex",gap:8,alignItems:"center"}}>
+      <button onClick={()=>ref.current.click()} style={{background:"#F7F9FC",border:"1.5px dashed #DDE3EE",borderRadius:9,padding:"7px 14px",fontSize:12,color:"var(--mu)",cursor:"pointer",fontFamily:"DM Sans",fontWeight:600}}>
+        📎 {file?file.name.slice(0,28)+"…":"Escolher arquivo"}
+      </button>
+      {file&&<button onClick={()=>onFile(null)} style={{background:"#FEF2F2",border:"1.5px solid #FECACA",borderRadius:7,padding:"5px 10px",fontSize:11,color:"var(--rd)",cursor:"pointer",fontFamily:"DM Sans"}}>✕</button>}
+      {file&&<a href={file.data} download={file.name} style={{background:"#F0FDF4",border:"1.5px solid #BBF7D0",borderRadius:7,padding:"5px 10px",fontSize:11,color:"var(--gn)",cursor:"pointer",fontFamily:"DM Sans",textDecoration:"none",fontWeight:600}}>↓ Baixar</a>}
+    </div>
+    <input ref={ref} type="file" accept={accept} style={{display:"none"}} onChange={async e=>{if(e.target.files[0]){const f=await readFile(e.target.files[0]);onFile(f);e.target.value="";}}}/>
+  </div>;
+}
 
 /* ══════════════════════════════════════════════════
    DASHBOARD
 ══════════════════════════════════════════════════ */
 function DashPage({leads,students,courses,sales}){
-  const revenue = sales.reduce((s,v)=>s+(+v.value||0),0);
-  const open    = leads.filter(l=>!["Fechado","Perdido"].includes(l.stage)).length;
-  const today   = new Date().toISOString().slice(0,10);
-  const nxt     = [...courses].sort((a,b)=>a.date.localeCompare(b.date)).find(c=>c.date>=today);
-  const byType  = STYPES.reduce((a,t)=>({...a,[t]:sales.filter(s=>s.type===t).reduce((x,v)=>x+(+v.value||0),0)}),{});
-
-  // Monthly chart from sales
-  const monthMap = {};
-  sales.forEach(s=>{
-    const m=s.date?.slice(0,7);
-    if(!m)return;
-    if(!monthMap[m])monthMap[m]={};
-    monthMap[m][s.type]=(monthMap[m][s.type]||0)+(+s.value||0);
-  });
-  const chartData = Object.keys(monthMap).sort().slice(-7).map(m=>({
-    mes:MOPT[parseInt(m.slice(5,7))-1], ...monthMap[m]
-  }));
-
-  const sStudent = id=>students.find(s=>s.id===id);
-
+  const revenue=sales.reduce((s,v)=>s+(+v.value||0),0);
+  const confirmed=confirmedRevenue(students);
+  const open=leads.filter(l=>!["Fechado","Perdido"].includes(l.stage)).length;
+  const today=new Date().toISOString().slice(0,10);
+  const nxt=[...courses].sort((a,b)=>a.date.localeCompare(b.date)).find(c=>c.date>=today);
+  const monthMap={};
+  sales.forEach(s=>{const m=s.date?.slice(0,7);if(!m)return;if(!monthMap[m])monthMap[m]={};monthMap[m][s.type]=(monthMap[m][s.type]||0)+(+s.value||0);});
+  const chartData=Object.keys(monthMap).sort().slice(-7).map(m=>({mes:MOPT[parseInt(m.slice(5,7))-1],...monthMap[m]}));
+  const sStudent=id=>students.find(s=>s.id===id);
   return <div style={{animation:"up .4s ease"}}>
     <div style={{marginBottom:22,paddingBottom:18,borderBottom:"1px solid var(--b)"}}>
       <div style={{fontSize:11,color:"var(--bl)",fontWeight:600,letterSpacing:1.4,textTransform:"uppercase",marginBottom:5}}>IOR · Instituto de Reflexologia e Pesquisa</div>
       <h1 style={{fontFamily:"Playfair Display",fontSize:28,fontWeight:400,color:"var(--tx)"}}>Painel de <em style={{fontWeight:700}}>Controle</em></h1>
     </div>
     <div style={{display:"flex",gap:11,flexWrap:"wrap",marginBottom:20}}>
-      <SC icon="💰" label="Receita total" value={`R$${revenue.toLocaleString()}`} color="var(--bl)"  delay={0}/>
-      <SC icon="🎓" label="Alunos ativos" value={students.length}               color="var(--te)"  delay={.06}/>
-      <SC icon="⚡" label="Leads em aberto" value={open}                         color="var(--pu)"  delay={.12}/>
-      <SC icon="📅" label="Cursos previstos" value={courses.length}              color="var(--am)"  delay={.18}/>
+      <SC icon="💰" label="Receita total (vendas)" value={`R$${revenue.toLocaleString()}`} color="var(--bl)"  delay={0}/>
+      <SC icon="✅" label="Receita confirmada" value={`R$${confirmed.toLocaleString()}`} color="var(--gn)"  delay={.04}/>
+      <SC icon="🎓" label="Alunos ativos" value={students.length} color="var(--te)" delay={.08}/>
+      <SC icon="⚡" label="Leads em aberto" value={open} color="var(--pu)" delay={.12}/>
+      <SC icon="📅" label="Cursos previstos" value={courses.length} color="var(--am)" delay={.16}/>
     </div>
     <div className="gdash">
       <div style={{background:"#fff",borderRadius:16,padding:20,border:"1px solid var(--b)",boxShadow:"var(--shadow)"}}>
         <div style={{fontFamily:"Playfair Display",fontSize:17,fontWeight:600,marginBottom:3}}>Receita por Tipo</div>
-        <div style={{fontSize:11,color:"var(--mu)",marginBottom:14}}>Últimos {chartData.length} meses · calculado das vendas</div>
-        {chartData.length>0 ? <ResponsiveContainer width="100%" height={120}>
+        <div style={{fontSize:11,color:"var(--mu)",marginBottom:14}}>Últimos {chartData.length} meses · todas as vendas</div>
+        {chartData.length>0?<ResponsiveContainer width="100%" height={120}>
           <BarChart data={chartData} margin={{top:0,right:0,left:-22,bottom:0}}>
             <XAxis dataKey="mes" tick={{fontSize:9,fill:"#9AAAC0"}} axisLine={false} tickLine={false}/>
             <YAxis tick={{fontSize:8,fill:"#9AAAC0"}} axisLine={false} tickLine={false}/>
             <Tooltip contentStyle={{background:"#fff",border:"1px solid #DDE3EE",borderRadius:8,fontSize:11,boxShadow:"var(--shadow)"}}/>
             {STYPES.map(t=><Bar key={t} dataKey={t} fill={TCL[t]} radius={[3,3,0,0]}/>)}
           </BarChart>
-        </ResponsiveContainer> : <div style={{textAlign:"center",padding:"24px 0",color:"var(--mu)",fontSize:12}}>Nenhuma venda ainda</div>}
+        </ResponsiveContainer>:<div style={{textAlign:"center",padding:"24px 0",color:"var(--mu)",fontSize:12}}>Nenhuma venda ainda</div>}
         <div style={{display:"flex",gap:9,marginTop:8,flexWrap:"wrap"}}>
           {STYPES.map(t=><div key={t} style={{display:"flex",alignItems:"center",gap:4}}><Dot color={TCL[t]} size={7}/><span style={{fontSize:10,color:"var(--mu)"}}>{t}</span></div>)}
         </div>
@@ -335,20 +355,17 @@ function DashPage({leads,students,courses,sales}){
     </div>
     <div style={{background:"#fff",borderRadius:16,padding:20,border:"1px solid var(--b)",boxShadow:"var(--shadow)"}}>
       <div style={{fontFamily:"Playfair Display",fontSize:16,fontWeight:600,marginBottom:14}}>Últimas Vendas</div>
-      {sales.slice(-6).reverse().map((s,i)=>{
-        const st=sStudent(s.studentId);
-        return <div key={s.id} style={{display:"flex",alignItems:"center",gap:11,padding:"8px 0",borderBottom:"1px solid var(--b)",animation:`sr .3s ease ${i*.05}s both`}}>
-          <Av letter={(st?.name||s.desc||"?")[0]} size={32} color={TCL[s.type]||"var(--bl)"}/>
-          <div style={{flex:1}}><div style={{fontWeight:600,fontSize:13}}>{st?.name||"—"}</div><div style={{fontSize:11,color:"var(--mu)"}}>{s.desc}</div></div>
-          <div style={{textAlign:"right"}}><div style={{fontWeight:700,color:"var(--bl)",fontSize:13}}>R${(+s.value).toLocaleString()}</div><Chip color={TCL[s.type]} sm>{s.type}</Chip></div>
-        </div>;
-      })}
+      {sales.slice(-6).reverse().map((s,i)=>{const st=sStudent(s.studentId);return <div key={s.id} style={{display:"flex",alignItems:"center",gap:11,padding:"8px 0",borderBottom:"1px solid var(--b)",animation:`sr .3s ease ${i*.05}s both`}}>
+        <Av letter={(st?.name||s.desc||"?")[0]} size={32} color={TCL[s.type]||"var(--bl)"}/>
+        <div style={{flex:1}}><div style={{fontWeight:600,fontSize:13}}>{st?.name||"—"}</div><div style={{fontSize:11,color:"var(--mu)"}}>{s.desc}</div></div>
+        <div style={{textAlign:"right"}}><div style={{fontWeight:700,color:"var(--bl)",fontSize:13}}>R${(+s.value).toLocaleString()}</div><Chip color={TCL[s.type]} sm>{s.type}</Chip></div>
+      </div>;})}
     </div>
   </div>;
 }
 
 /* ══════════════════════════════════════════════════
-   CRM LEADS — courses from state, auto-move to students
+   CRM LEADS — drag-and-drop kanban
 ══════════════════════════════════════════════════ */
 function CRMPage({leads,setLeads,courses,students,setStudents,sales,setSales}){
   const[stages,setStages]=useState([...SCRM]);
@@ -361,47 +378,29 @@ function CRMPage({leads,setLeads,courses,students,setStudents,sales,setSales}){
   const[search,setSearch]=useState("");
   const[showSA,setShowSA]=useState(false);
   const[newSt,setNewSt]=useState("");
+  const[dragId,setDragId]=useState(null);
+  const[dragOver,setDragOver]=useState(null);
   const eL={name:"",phone:"",email:"",courseId:"",stage:stages[0],source:"",payment:"",lossReason:"",value:"",type:"Curso",notes:"",date:new Date().toISOString().slice(0,10)};
   const[form,setForm]=useState(eL);
   const f=v=>setForm(p=>({...p,...v}));
-
-  const courseOptions = courses.map(c=>({id:c.id,label:c.name,value:c.value,type:c.type}));
-  const getCourse = id=>courses.find(c=>c.id===+id);
+  const courseOptions=courses.map(c=>({id:c.id,label:c.name,value:c.value,type:c.type}));
+  const getCourse=id=>courses.find(c=>c.id===+id);
 
   function save(){
     if(!form.name.trim())return;
     const course=getCourse(form.courseId);
-    const finalForm={...form, courseId:+form.courseId||null};
-
-    // If moving to Fechado → auto-create student + sales entry + enroll in course
+    const finalForm={...form,courseId:+form.courseId||null};
     if(form.stage==="Fechado"&&(!editing||editing.stage!=="Fechado")){
       const existing=students.find(s=>s.email===form.email||s.phone===form.phone);
       if(!existing){
         const nsId=Date.now();
-        const ns={
-          id:nsId,name:form.name,email:form.email,phone:form.phone,cpf:"",city:"",
-          since:new Date().toISOString().slice(0,7),
-          courses:form.courseId?[+form.courseId]:[],
-          contract:false,pType:"",pMethod:form.payment||"PIX",totalValue:+form.value||0,
-          installments:0,instValue:0,startMonth:"",paidMonths:[],paid:false,
-          certificate:[],interests:[],notes:form.notes
-        };
+        const ns={id:nsId,name:form.name,email:form.email,phone:form.phone,cpf:"",city:"",since:new Date().toISOString().slice(0,7),courses:form.courseId?[+form.courseId]:[],contract:false,contractFile:null,pType:"",pMethod:form.payment||"PIX",totalValue:+form.value||0,installments:0,instValue:0,startMonth:"",paidMonths:[],paid:false,certificate:[],interests:[],notes:form.notes,enrollmentDates:form.courseId?{[+form.courseId]:new Date().toISOString().slice(0,10)}:{},pedDocs:{}};
         setStudents(ss=>[...ss,ns]);
-        // Auto-add sale
-        if(form.value&&+form.value>0){
-          setSales(ss=>[...ss,{id:nsId+1,date:form.date,studentId:nsId,
-            desc:course?.name||form.notes||"Lead convertido",
-            value:+form.value,payment:form.payment||"PIX",type:form.type||"Curso",notes:"Lead convertido"}]);
-        }
+        if(form.value&&+form.value>0){setSales(ss=>[...ss,{id:nsId+1,date:form.date,studentId:nsId,desc:course?.name||form.notes||"Lead convertido",value:+form.value,payment:form.payment||"PIX",type:form.type||"Curso",notes:"Lead convertido"}]);}
       } else {
-        // Lead is existing student - just enroll them in the course if not yet
         if(form.courseId&&!existing.courses.includes(+form.courseId)){
           setStudents(ss=>ss.map(s=>s.id!==existing.id?s:{...s,courses:[...new Set([...s.courses,+form.courseId])]}));
-          if(form.value&&+form.value>0){
-            setSales(ss=>[...ss,{id:Date.now()+2,date:form.date,studentId:existing.id,
-              desc:course?.name||"Lead convertido",
-              value:+form.value,payment:form.payment||"PIX",type:form.type||"Curso",notes:"Lead convertido (já aluno)"}]);
-          }
+          if(form.value&&+form.value>0){setSales(ss=>[...ss,{id:Date.now()+2,date:form.date,studentId:existing.id,desc:course?.name||"Lead convertido",value:+form.value,payment:form.payment||"PIX",type:form.type||"Curso",notes:"Lead convertido (já aluno)"}]);}
         }
       }
     }
@@ -411,7 +410,13 @@ function CRMPage({leads,setLeads,courses,students,setStudents,sales,setSales}){
   }
   function edit(l){setForm({...l,courseId:l.courseId||""});setEditing(l);setShowF(true);}
   function del(id){setLeads(ls=>ls.filter(l=>l.id!==id));setShowF(false);setEditing(null);}
-  const filtered=leads.filter(l=>!search||(l.name.toLowerCase()+getCourse(l.courseId)?.name||"").toLowerCase().includes(search.toLowerCase()));
+  const filtered=leads.filter(l=>!search||(l.name.toLowerCase()+(getCourse(l.courseId)?.name||"")).toLowerCase().includes(search.toLowerCase()));
+
+  function onDrop(stage){
+    if(dragId==null)return;
+    setLeads(ls=>ls.map(l=>l.id===dragId?{...l,stage}:l));
+    setDragId(null);setDragOver(null);
+  }
 
   return <div style={{animation:"up .4s ease"}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
@@ -422,19 +427,27 @@ function CRMPage({leads,setLeads,courses,students,setStudents,sales,setSales}){
       </div>
     </div>
     <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍  Buscar lead..." style={{width:"100%",background:"#fff",border:"1.5px solid #DDE3EE",borderRadius:11,padding:"9px 14px",color:"var(--tx)",fontSize:13,outline:"none",fontFamily:"DM Sans",marginBottom:14,boxShadow:"var(--shadow)"}}/>
-
     {view==="kanban"?(
       <div style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:10}}>
         {stages.map(stage=>{
           const cards=filtered.filter(l=>l.stage===stage);
           const tot=cards.reduce((s,l)=>s+(+l.value||0),0);
-          return <div key={stage} style={{minWidth:210,flex:"0 0 210px"}}>
+          const isDragOver=dragOver===stage;
+          return <div key={stage} style={{minWidth:210,flex:"0 0 210px"}}
+            onDragOver={e=>{e.preventDefault();setDragOver(stage);}}
+            onDragLeave={()=>setDragOver(null)}
+            onDrop={()=>onDrop(stage)}>
             <div style={{background:"#fff",borderRadius:"11px 11px 0 0",padding:"9px 12px",border:"1px solid var(--b)",borderBottom:`3px solid ${SCL[stage]||"var(--mu2)"}`,boxShadow:"var(--shadow)"}}>
               <div style={{display:"flex",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:6}}><Dot color={SCL[stage]||"#9AAAC0"}/><span style={{fontSize:12,fontWeight:700,color:"var(--tx)"}}>{stage}</span></div><span style={{background:"#F0F4FA",borderRadius:99,padding:"2px 8px",fontSize:11,fontWeight:700,color:"var(--mu)"}}>{cards.length}</span></div>
               {tot>0&&<div style={{fontSize:10,color:"var(--bl)",marginTop:2,fontWeight:600}}>R${tot.toLocaleString()}</div>}
             </div>
-            <div style={{background:"#F7F9FC",borderRadius:"0 0 11px 11px",border:"1px solid var(--b)",borderTop:"none",padding:7,display:"flex",flexDirection:"column",gap:6,minHeight:80}}>
-              {cards.map(lead=>{const c=getCourse(lead.courseId);return <div key={lead.id} onClick={()=>edit(lead)} style={{background:"#fff",borderRadius:9,padding:"10px 11px",cursor:"pointer",border:"1px solid var(--b)",borderLeft:`3px solid ${SCL[stage]||"#9AAAC0"}`,transition:"all .14s",boxShadow:"0 1px 4px rgba(30,40,80,.06)"}}
+            <div style={{background:isDragOver?"#EEF4FF":"#F7F9FC",borderRadius:"0 0 11px 11px",border:`${isDragOver?"2px dashed var(--bl)":"1px solid var(--b)"}`,borderTop:"none",padding:7,display:"flex",flexDirection:"column",gap:6,minHeight:80,transition:"all .15s"}}>
+              {cards.map(lead=>{const c=getCourse(lead.courseId);return <div key={lead.id}
+                draggable
+                onDragStart={()=>setDragId(lead.id)}
+                onDragEnd={()=>{setDragId(null);setDragOver(null);}}
+                onClick={()=>edit(lead)}
+                style={{background:"#fff",borderRadius:9,padding:"10px 11px",cursor:"grab",border:"1px solid var(--b)",borderLeft:`3px solid ${SCL[stage]||"#9AAAC0"}`,transition:"all .14s",boxShadow:"0 1px 4px rgba(30,40,80,.06)",opacity:dragId===lead.id?.4:1}}
                 onMouseEnter={e=>e.currentTarget.style.boxShadow="0 3px 12px rgba(30,40,80,.12)"}
                 onMouseLeave={e=>e.currentTarget.style.boxShadow="0 1px 4px rgba(30,40,80,.06)"}>
                 <div style={{fontWeight:600,fontSize:12,color:"var(--tx)"}}>{lead.name}</div>
@@ -445,7 +458,7 @@ function CRMPage({leads,setLeads,courses,students,setStudents,sales,setSales}){
                 </div>
                 {stage==="Perdido"&&lead.lossReason&&<div style={{fontSize:10,color:"var(--rd)",marginTop:2}}>⚠ {lead.lossReason}</div>}
               </div>;})}
-              {!cards.length&&<div style={{textAlign:"center",fontSize:11,color:"var(--mu2)",padding:"10px 0"}}>Sem leads</div>}
+              {!cards.length&&<div style={{textAlign:"center",fontSize:11,color:"var(--mu2)",padding:"10px 0"}}>Arraste cards aqui</div>}
             </div>
           </div>;
         })}
@@ -501,63 +514,98 @@ function CRMPage({leads,setLeads,courses,students,setStudents,sales,setSales}){
 }
 
 /* ══════════════════════════════════════════════════
-   CRM PRODUTOS
+   CRM PRODUTOS — drag-and-drop + documentos
 ══════════════════════════════════════════════════ */
 function ProductsPage({products,setProducts,sales,setSales}){
   const[showF,setShowF]=useState(false);const[editing,setEditing]=useState(null);
-  const e={product:"",client:"",qty:1,value:"",notes:"",stage:PSTG[0],date:new Date().toISOString().slice(0,10)};
+  const[dragId,setDragId]=useState(null);const[dragOver,setDragOver]=useState(null);
+  const[viewDocs,setViewDocs]=useState(null);
+  const e={product:"",client:"",qty:1,value:"",notes:"",stage:PSTG[0],date:new Date().toISOString().slice(0,10),documents:[]};
   const[form,setForm]=useState(e);
+
+  async function addDoc(file){const f=await readFile(file);setForm(p=>({...p,documents:[...(p.documents||[]),f]}));}
+  function removeDoc(idx){setForm(p=>({...p,documents:(p.documents||[]).filter((_,i)=>i!==idx)}));}
+
   function save(){
     if(!form.product.trim())return;
     const wasNotClosed=!editing||editing.stage!=="Fechado";
     const isClosing=form.stage==="Fechado"&&wasNotClosed;
-    if(editing){
-      setProducts(ps=>ps.map(p=>p.id===editing.id?{...form,id:p.id}:p));
-    } else {
-      const id=Date.now();setProducts(ps=>[...ps,{...form,id}]);
-    }
-    // Auto-add sale when status becomes Fechado
-    if(isClosing&&form.value&&+form.value>0){
-      setSales(ss=>[...ss,{id:Date.now()+1,date:form.date||new Date().toISOString().slice(0,10),studentId:null,desc:form.product,value:+form.value,payment:"PIX",type:"Produto",notes:form.client}]);
-    }
+    if(editing){setProducts(ps=>ps.map(p=>p.id===editing.id?{...form,id:p.id}:p));}
+    else{const id=Date.now();setProducts(ps=>[...ps,{...form,id}]);}
+    if(isClosing&&form.value&&+form.value>0){setSales(ss=>[...ss,{id:Date.now()+1,date:form.date||new Date().toISOString().slice(0,10),studentId:null,desc:form.product,value:+form.value,payment:"PIX",type:"Produto",notes:form.client}]);}
     setShowF(false);setEditing(null);setForm(e);
   }
-  function edit(p){setForm({...p});setEditing(p);setShowF(true);}
-  // When product moves to Fechado, add sale
+  function edit(p){setForm({...p,documents:p.documents||[]});setEditing(p);setShowF(true);}
   function moveStage(prod,stage){
     setProducts(ps=>ps.map(p=>p.id===prod.id?{...p,stage}:p));
-    if(stage==="Fechado"&&prod.stage!=="Fechado"&&prod.value&&+prod.value>0){
-      setSales(ss=>[...ss,{id:Date.now(),date:new Date().toISOString().slice(0,10),studentId:null,desc:prod.product,value:+prod.value,payment:"PIX",type:"Produto",notes:prod.client}]);
-    }
+    if(stage==="Fechado"&&prod.stage!=="Fechado"&&prod.value&&+prod.value>0){setSales(ss=>[...ss,{id:Date.now(),date:new Date().toISOString().slice(0,10),studentId:null,desc:prod.product,value:+prod.value,payment:"PIX",type:"Produto",notes:prod.client}]);}
   }
+  function onDrop(stage){
+    if(dragId==null)return;
+    const prod=products.find(p=>p.id===dragId);
+    if(prod)moveStage(prod,stage);
+    setDragId(null);setDragOver(null);
+  }
+
   return <div style={{animation:"up .4s ease"}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-      <div><h1 style={{fontFamily:"Playfair Display",fontSize:24,fontWeight:700}}>CRM · Produtos</h1><p style={{color:"var(--mu)",fontSize:11,marginTop:2}}>{products.length} pedidos · ao fechar → gera venda</p></div>
+      <div><h1 style={{fontFamily:"Playfair Display",fontSize:24,fontWeight:700}}>CRM · Produtos</h1><p style={{color:"var(--mu)",fontSize:11,marginTop:2}}>{products.length} pedidos · arraste para mudar etapa · ao fechar → gera venda</p></div>
       <Btn sz="sm" onClick={()=>{setForm(e);setEditing(null);setShowF(true);}}>+ Novo</Btn>
     </div>
     <div style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:10}}>
-      {PSTG.map(stage=>{const cards=products.filter(p=>p.stage===stage);return <div key={stage} style={{minWidth:195,flex:"0 0 195px"}}>
+      {PSTG.map(stage=>{const cards=products.filter(p=>p.stage===stage);const isDragOver=dragOver===stage;return <div key={stage} style={{minWidth:195,flex:"0 0 195px"}}
+        onDragOver={e=>{e.preventDefault();setDragOver(stage);}}
+        onDragLeave={()=>setDragOver(null)}
+        onDrop={()=>onDrop(stage)}>
         <div style={{background:"#fff",borderRadius:"11px 11px 0 0",padding:"9px 12px",border:"1px solid var(--b)",borderBottom:`3px solid ${PCL[stage]}`,boxShadow:"var(--shadow)"}}>
           <div style={{display:"flex",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:6}}><Dot color={PCL[stage]}/><span style={{fontSize:12,fontWeight:700,color:"var(--tx)"}}>{stage}</span></div><span style={{background:"#F0F4FA",borderRadius:99,padding:"2px 7px",fontSize:11,fontWeight:700,color:"var(--mu)"}}>{cards.length}</span></div>
         </div>
-        <div style={{background:"#F7F9FC",borderRadius:"0 0 11px 11px",border:"1px solid var(--b)",borderTop:"none",padding:7,display:"flex",flexDirection:"column",gap:6,minHeight:70}}>
-          {cards.map(p=><div key={p.id} onClick={()=>edit(p)} style={{background:"#fff",borderRadius:9,padding:"10px 11px",cursor:"pointer",border:"1px solid var(--b)",borderLeft:`3px solid ${PCL[stage]}`,transition:"all .14s",boxShadow:"0 1px 4px rgba(30,40,80,.06)"}}
-            onMouseEnter={e=>e.currentTarget.style.boxShadow="0 3px 12px rgba(30,40,80,.12)"}
-            onMouseLeave={e=>e.currentTarget.style.boxShadow="0 1px 4px rgba(30,40,80,.06)"}>
+        <div style={{background:isDragOver?"#EEF4FF":"#F7F9FC",borderRadius:"0 0 11px 11px",border:`${isDragOver?"2px dashed var(--bl)":"1px solid var(--b)"}`,borderTop:"none",padding:7,display:"flex",flexDirection:"column",gap:6,minHeight:70,transition:"all .15s"}}>
+          {cards.map(p=><div key={p.id}
+            draggable
+            onDragStart={()=>setDragId(p.id)}
+            onDragEnd={()=>{setDragId(null);setDragOver(null);}}
+            onClick={()=>edit(p)}
+            style={{background:"#fff",borderRadius:9,padding:"10px 11px",cursor:"grab",border:"1px solid var(--b)",borderLeft:`3px solid ${PCL[stage]}`,transition:"all .14s",boxShadow:"0 1px 4px rgba(30,40,80,.06)",opacity:dragId===p.id?.4:1}}
+            onMouseEnter={ev=>ev.currentTarget.style.boxShadow="0 3px 12px rgba(30,40,80,.12)"}
+            onMouseLeave={ev=>ev.currentTarget.style.boxShadow="0 1px 4px rgba(30,40,80,.06)"}>
             <div style={{fontWeight:600,fontSize:12,color:"var(--tx)"}}>{p.product}</div>
             <div style={{fontSize:11,color:"var(--mu)",marginTop:2}}>👤 {p.client}</div>
             <div style={{display:"flex",justifyContent:"space-between",marginTop:5}}><span style={{fontSize:11,color:"var(--mu)"}}>Qtd:{p.qty}</span><span style={{fontSize:11,fontWeight:700,color:"var(--bl)"}}>R${(+p.value||0).toLocaleString()}</span></div>
+            {(p.documents||[]).length>0&&<div style={{marginTop:5,display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:10}}>📎</span><span style={{fontSize:10,color:"var(--bl)",fontWeight:600}}>{p.documents.length} doc{p.documents.length!==1?"s":""}</span><button onClick={ev=>{ev.stopPropagation();setViewDocs(p);}} style={{marginLeft:"auto",background:"#EEF4FF",border:"1px solid #C7D7F5",borderRadius:5,padding:"1px 6px",fontSize:9,color:"var(--bl)",cursor:"pointer",fontFamily:"DM Sans"}}>ver</button></div>}
           </div>)}
-          {!cards.length&&<div style={{textAlign:"center",fontSize:11,color:"var(--mu2)",padding:"10px 0"}}>Vazio</div>}
+          {!cards.length&&<div style={{textAlign:"center",fontSize:11,color:"var(--mu2)",padding:"10px 0"}}>Arraste aqui</div>}
         </div>
       </div>;})}
     </div>
+
+    {viewDocs&&<Modal title="Documentos" sub={viewDocs.product} onClose={()=>setViewDocs(null)}>
+      {(viewDocs.documents||[]).map((d,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderRadius:9,background:"#F7F9FC",border:"1px solid var(--b)",marginBottom:8}}>
+        <span style={{fontSize:18}}>📄</span>
+        <span style={{flex:1,fontSize:12,fontWeight:600,color:"var(--tx)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</span>
+        <a href={d.data} download={d.name} style={{background:"#F0FDF4",border:"1.5px solid #BBF7D0",borderRadius:7,padding:"5px 10px",fontSize:11,color:"var(--gn)",textDecoration:"none",fontWeight:600}}>↓ Baixar</a>
+      </div>)}
+      {!(viewDocs.documents||[]).length&&<div style={{textAlign:"center",padding:"18px 0",color:"var(--mu)",fontSize:12}}>Sem documentos</div>}
+    </Modal>}
+
     {showF&&<Modal title={editing?"Editar":"Novo Pedido"} onClose={()=>{setShowF(false);setEditing(null);}}>
       <Inp label="Produto *" value={form.product} onChange={e=>setForm(f=>({...f,product:e.target.value}))}/>
       <Inp label="Cliente" value={form.client} onChange={e=>setForm(f=>({...f,client:e.target.value}))}/>
       <div className="g2"><Inp label="Qtd" value={form.qty} onChange={e=>setForm(f=>({...f,qty:e.target.value}))} type="number"/><Inp label="Valor (R$)" value={form.value} onChange={e=>setForm(f=>({...f,value:e.target.value}))} type="number"/></div>
       <Lbl>Etapa</Lbl><div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:12}}>{PSTG.map(s=><button key={s} onClick={()=>setForm(f=>({...f,stage:s}))} style={{background:form.stage===s?`${PCL[s]}15`:"#F7F9FC",border:`1.5px solid ${form.stage===s?PCL[s]:"#DDE3EE"}`,color:form.stage===s?PCL[s]:"var(--mu)",borderRadius:99,padding:"5px 11px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{s}</button>)}</div>
       <Inp label="Notas" value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} rows={2}/>
+      <Lbl>Documentos (NF, comprovantes, etc.)</Lbl>
+      <div style={{marginBottom:13}}>
+        <label style={{display:"inline-flex",alignItems:"center",gap:7,background:"#F7F9FC",border:"1.5px dashed #DDE3EE",borderRadius:9,padding:"8px 14px",cursor:"pointer",fontSize:12,color:"var(--mu)",fontWeight:600}}>
+          📎 Adicionar documento
+          <input type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" style={{display:"none"}} onChange={async e=>{if(e.target.files[0]){await addDoc(e.target.files[0]);e.target.value="";}}}/>
+        </label>
+        {(form.documents||[]).map((d,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:8,marginTop:7,background:"#F7F9FC",borderRadius:8,padding:"6px 10px",border:"1px solid var(--b)"}}>
+          <span style={{fontSize:14}}>📄</span>
+          <span style={{flex:1,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</span>
+          <button onClick={()=>removeDoc(i)} style={{background:"transparent",border:"none",color:"var(--rd)",cursor:"pointer",fontSize:14}}>×</button>
+        </div>)}
+      </div>
       {form.stage==="Fechado"&&form.value>0&&<div style={{background:"#F0FDF4",border:"1.5px solid #BBF7D0",borderRadius:9,padding:"8px 12px",fontSize:12,color:"var(--gn)",marginBottom:11,fontWeight:600}}>✓ Ao salvar, gera venda automaticamente</div>}
       <div style={{display:"flex",gap:8}}><Btn style={{flex:1}} onClick={save}>{editing?"Salvar":"Adicionar"}</Btn>{editing&&<Btn v="danger" onClick={()=>{setProducts(ps=>ps.filter(p=>p.id!==editing.id));setShowF(false);setEditing(null);}}>Excluir</Btn>}</div>
     </Modal>}
@@ -565,20 +613,28 @@ function ProductsPage({products,setProducts,sales,setSales}){
 }
 
 /* ══════════════════════════════════════════════════
-   ALUNOS — courses from state, connected enrollment
+   ALUNOS — filtros, contrato PDF, vencimentos, waitlist auto
 ══════════════════════════════════════════════════ */
 function StudentsPage({students,setStudents,courses,sales,setSales,templates}){
   const[search,setSearch]=useState("");
+  const[filterStatus,setFilterStatus]=useState("todos");
+  const[filterCourse,setFilterCourse]=useState("");
   const[sel,setSel]=useState(null);
   const[editingSt,setEditingSt]=useState(null);
   const[showF,setShowF]=useState(false);
   const[waM,setWaM]=useState(null);const[waMsg,setWaMsg]=useState("");
-  const e={name:"",email:"",phone:"",cpf:"",city:"",since:new Date().toISOString().slice(0,7),courses:[],contract:false,pType:"avista",pMethod:"PIX",totalValue:"",installments:0,instValue:"",startMonth:"",paidMonths:[],paid:false,certificate:[],interests:[],notes:""};
+  const e={name:"",email:"",phone:"",cpf:"",city:"",since:new Date().toISOString().slice(0,7),courses:[],contract:false,contractFile:null,pType:"avista",pMethod:"PIX",totalValue:"",installments:0,instValue:"",startMonth:"",paidMonths:[],paid:false,certificate:[],interests:[],notes:"",enrollmentDates:{},pedDocs:{}};
   const[form,setForm]=useState(e);
   const ff=v=>setForm(p=>({...p,...v}));
   const ls=id=>students.find(s=>s.id===id)||null;
 
-  const filtered=students.filter(s=>[s.name,s.email||"",s.city||"",s.cpf||"",(s.phone||"").replace(/\D/g,"")].some(x=>x.toLowerCase().includes(search.toLowerCase())));
+  const filtered=students.filter(s=>{
+    const matchSearch=[s.name,s.email||"",s.city||"",s.cpf||"",(s.phone||"").replace(/\D/g,"")].some(x=>x.toLowerCase().includes(search.toLowerCase()));
+    const matchCourse=!filterCourse||s.courses.includes(+filterCourse);
+    const od=isOverdue(s);const pd=isPaid(s);
+    const matchStatus=filterStatus==="todos"||(filterStatus==="atrasados"&&od)||(filterStatus==="emDia"&&!od&&!pd)||(filterStatus==="quitados"&&pd);
+    return matchSearch&&matchCourse&&matchStatus;
+  });
 
   function save(){
     if(!form.name.trim())return;
@@ -586,12 +642,9 @@ function StudentsPage({students,setStudents,courses,sales,setSales,templates}){
     if(editingSt)setStudents(ss=>ss.map(s=>s.id===editingSt.id?target:s));
     else{
       setStudents(ss=>[...ss,target]);
-      // Auto-add sales for each enrolled course
       target.courses.forEach(cid=>{
         const c=courses.find(x=>x.id===cid);
-        if(c&&c.value>0){
-          setSales(ss=>[...ss,{id:Date.now()+cid,date:target.since+"-01",studentId:target.id,desc:c.name,value:c.value,payment:target.pMethod||"PIX",type:c.type==="Workshop"?"Workshop":"Curso",notes:"Matrícula"}]);
-        }
+        if(c&&c.value>0){setSales(ss=>[...ss,{id:Date.now()+cid,date:target.since+"-01",studentId:target.id,desc:c.name,value:c.value,payment:target.pMethod||"PIX",type:c.type==="Workshop"?"Workshop":"Curso",notes:"Matrícula"}]);}
       });
     }
     setShowF(false);setEditingSt(null);setForm(e);
@@ -599,47 +652,63 @@ function StudentsPage({students,setStudents,courses,sales,setSales,templates}){
   function togglePaid(stId,idx){setStudents(ss=>ss.map(s=>{if(s.id!==stId)return s;const pm=[...(s.paidMonths||[])];const pos=pm.indexOf(idx);if(pos>=0)pm.splice(pos,1);else pm.push(idx);return {...s,paidMonths:pm};}));}
   function toggleAVistaPaid(stId){setStudents(ss=>ss.map(s=>s.id!==stId?s:{...s,paid:!s.paid}));}
   function toggleContract(stId){setStudents(ss=>ss.map(s=>s.id!==stId?s:{...s,contract:!s.contract}));}
+  async function setContractFile(stId,file){setStudents(ss=>ss.map(s=>s.id!==stId?s:{...s,contractFile:file}));}
+
   function enrollCourse(stId,cid,enroll){
-    // Update student.courses
+    const course=courses.find(x=>x.id===cid);
+    const enrolled=students.filter(s=>s.courses.includes(cid));
+    if(enroll&&course&&enrolled.length>=course.capacity){
+      if(!window.confirm(`Turma lotada (${enrolled.length}/${course.capacity} vagas). Adicionar à lista de espera?`))return;
+      setCourses && setCourses(cs=>cs.map(c=>c.id!==cid?c:{...c,waitlist:[...new Set([...(c.waitlist||[]),stId])]}));
+      return;
+    }
     setStudents(ss=>ss.map(s=>{
       if(s.id!==stId)return s;
       const cs=enroll?[...new Set([...s.courses,cid])]:s.courses.filter(x=>x!==cid);
-      return {...s,courses:cs};
+      const ed={...(s.enrollmentDates||{})};
+      if(enroll)ed[cid]=new Date().toISOString().slice(0,10);
+      else delete ed[cid];
+      return {...s,courses:cs,enrollmentDates:ed};
     }));
-    // Auto-add sale when enrolling
-    if(enroll){
-      const c=courses.find(x=>x.id===cid);
-      if(c&&c.value>0){
-        setSales(ss=>[...ss,{id:Date.now(),date:new Date().toISOString().slice(0,10),studentId:stId,desc:c.name,value:c.value,payment:"PIX",type:c.type==="Workshop"?"Workshop":"Curso",notes:"Matrícula direta"}]);
-      }
-    }
+    if(enroll&&course&&course.value>0){setSales(ss=>[...ss,{id:Date.now(),date:new Date().toISOString().slice(0,10),studentId:stId,desc:course.name,value:course.value,payment:"PIX",type:course.type==="Workshop"?"Workshop":"Curso",notes:"Matrícula direta"}]);}
   }
   function openWA(st,msg){const p=(st.phone||"").replace(/\D/g,"");if(p)window.open(`https://wa.me/55${p}?text=${encodeURIComponent(msg)}`,"_blank");else navigator.clipboard.writeText(msg);}
-  const hasOD=s=>(s.pType==="parcelado"&&(s.paidMonths||[]).length<(s.installments||0))||(s.pType==="avista"&&!s.paid);
+
+  const statusFilters=[["todos","Todos"],["emDia","Em dia"],["atrasados","Atrasados"],["quitados","Quitados"]];
+  const FC={"todos":"var(--mu)","emDia":"var(--gn)","atrasados":"var(--rd)","quitados":"var(--bl)"};
 
   return <div style={{animation:"up .4s ease"}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-      <div><h1 style={{fontFamily:"Playfair Display",fontSize:24,fontWeight:700}}>Alunos</h1><p style={{color:"var(--mu)",fontSize:11,marginTop:2}}>{students.length} cadastrados · {students.filter(hasOD).length} com pagamento pendente</p></div>
+      <div><h1 style={{fontFamily:"Playfair Display",fontSize:24,fontWeight:700}}>Alunos</h1><p style={{color:"var(--mu)",fontSize:11,marginTop:2}}>{students.length} cadastrados · {students.filter(isOverdue).length} com pagamento pendente · {students.filter(isPaid).length} quitados</p></div>
       <Btn sz="sm" onClick={()=>{setForm(e);setEditingSt(null);setShowF(true);}}>+ Cadastrar</Btn>
     </div>
     <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍  Nome, e-mail, CPF, telefone ou cidade..."
-      style={{width:"100%",background:"#fff",border:"1.5px solid #DDE3EE",borderRadius:11,padding:"9px 14px",color:"var(--tx)",fontSize:13,outline:"none",fontFamily:"DM Sans",marginBottom:14,boxShadow:"var(--shadow)"}}/>
+      style={{width:"100%",background:"#fff",border:"1.5px solid #DDE3EE",borderRadius:11,padding:"9px 14px",color:"var(--tx)",fontSize:13,outline:"none",fontFamily:"DM Sans",marginBottom:10,boxShadow:"var(--shadow)"}}/>
+    <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+      {statusFilters.map(([v,l])=><button key={v} onClick={()=>setFilterStatus(v)} style={{background:filterStatus===v?`${FC[v]}15`:"#fff",border:`1.5px solid ${filterStatus===v?FC[v]:"#DDE3EE"}`,color:filterStatus===v?FC[v]:"var(--mu)",borderRadius:99,padding:"5px 12px",fontSize:11,fontWeight:600,cursor:"pointer",boxShadow:"var(--shadow)"}}>{l}</button>)}
+      <select value={filterCourse} onChange={e=>setFilterCourse(e.target.value)} style={{background:"#fff",border:"1.5px solid #DDE3EE",borderRadius:9,padding:"5px 11px",color:"var(--mu)",fontSize:11,outline:"none",fontFamily:"DM Sans",boxShadow:"var(--shadow)"}}>
+        <option value="">Todos os cursos</option>
+        {courses.map(c=><option key={c.id} value={c.id}>{c.name.split("–")[0].trim()}</option>)}
+      </select>
+    </div>
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
       {filtered.map((s,i)=>{
-        const live=ls(s.id)||s; const od=hasOD(live); const ex=sel===s.id;
+        const live=ls(s.id)||s;const od=isOverdue(live);const pd=isPaid(live);const ex=sel===s.id;
+        const statusColor=pd?"var(--gn)":od?"var(--rd)":"var(--bl)";
         return <div key={s.id} style={{background:"#fff",borderRadius:14,border:`1.5px solid ${ex?"var(--bl)":od?"#FECACA":"#E5EAF3"}`,overflow:"hidden",animation:`sr .3s ease ${i*.04}s both`,boxShadow:"var(--shadow)"}}>
           <div onClick={()=>setSel(x=>x===s.id?null:s.id)} style={{display:"flex",alignItems:"center",gap:11,padding:"13px 16px",cursor:"pointer"}}>
-            <Av letter={live.name[0]} size={38} color={od?"var(--rd)":"var(--bl)"}/>
+            <Av letter={live.name[0]} size={38} color={statusColor}/>
             <div style={{flex:1}}>
               <div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}>
                 <span style={{fontWeight:700,fontSize:13,color:"var(--tx)"}}>{live.name}</span>
                 {!live.contract&&<Chip color="var(--am)" sm>Sem contrato</Chip>}
                 {od&&<Chip color="var(--rd)" sm>Pendente</Chip>}
+                {pd&&<Chip color="var(--gn)" sm>✓ Quitado</Chip>}
               </div>
               <div style={{fontSize:11,color:"var(--mu)",marginTop:2}}>{live.email} · {live.city}</div>
             </div>
             <div style={{textAlign:"right"}}>
-              <div style={{fontWeight:700,color:"var(--bl)",fontSize:13}}>R${(+live.totalValue||0).toLocaleString()}</div>
+              <div style={{fontWeight:700,color:statusColor,fontSize:13}}>R${(+live.totalValue||0).toLocaleString()}</div>
               <div style={{fontSize:11,color:"var(--mu)"}}>{live.courses.length} cursos</div>
             </div>
             <span style={{color:"var(--mu)",fontSize:11,marginLeft:3}}>{ex?"▲":"▼"}</span>
@@ -653,16 +722,26 @@ function StudentsPage({students,setStudents,courses,sales,setSales,templates}){
                   <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${live.contract?"var(--gn)":"#DDE3EE"}`,background:live.contract?"var(--gn)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#fff",fontWeight:700,flexShrink:0}}>{live.contract?"✓":""}</div>
                   <span style={{color:live.contract?"var(--gn)":"var(--mu)",fontWeight:live.contract?600:400}}>Contrato assinado</span>
                 </div>
+                <div style={{padding:"7px 0",borderBottom:"1px solid var(--b)"}}>
+                  <FileUpload label="" file={live.contractFile} onFile={f=>setContractFile(live.id,f)} accept=".pdf"/>
+                  {!live.contractFile&&<div style={{fontSize:10,color:"var(--mu2)",marginTop:2}}>Anexar PDF do contrato</div>}
+                </div>
                 <Divr/>
                 <div style={{fontSize:10,color:"var(--bl)",fontWeight:600,letterSpacing:.5,marginBottom:9,textTransform:"uppercase"}}>Cursos — clique para matricular</div>
-                {courses.map(c=>{const en=live.courses.includes(c.id);const ce=(live.certificate||[]).includes(c.id);const it=(live.interests||[]).includes(c.id);
-                  const waitIdx=c.waitlist.indexOf(live.id);const inWait=waitIdx>=0;
-                  return <div key={c.id} style={{display:"flex",alignItems:"center",gap:7,padding:"5px 0",borderBottom:"1px solid var(--b)",opacity:en||it||inWait?1:.4}}>
+                {courses.map(c=>{
+                  const en=live.courses.includes(c.id);
+                  const ce=(live.certificate||[]).includes(c.id);
+                  const enrolled=students.filter(s=>s.courses.includes(c.id));
+                  const isFull=enrolled.length>=c.capacity;
+                  const inWait=(c.waitlist||[]).includes(live.id);
+                  const enrollDate=(live.enrollmentDates||{})[c.id];
+                  return <div key={c.id} style={{display:"flex",alignItems:"center",gap:7,padding:"5px 0",borderBottom:"1px solid var(--b)",opacity:en||inWait?1:.5}}>
                     <button onClick={()=>enrollCourse(live.id,c.id,!en)} style={{width:18,height:18,borderRadius:4,border:`2px solid ${en?"var(--bl)":"#DDE3EE"}`,background:en?"var(--bl)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:"pointer",fontSize:10,color:"#fff",fontWeight:700}}>{en?"✓":""}</button>
                     <span style={{fontSize:11,flex:1,color:en?"var(--tx)":"var(--mu)",fontWeight:en?600:400}}>{c.name}</span>
-                    {ce&&<Chip color="var(--te)" sm>Certificado</Chip>}
+                    {isFull&&!en&&<Chip color="var(--rd)" sm>Lotado</Chip>}
+                    {ce&&<Chip color="var(--te)" sm>Cert.</Chip>}
                     {inWait&&<Chip color="var(--am)" sm>⏳ Espera</Chip>}
-                    {en&&c.value>0&&<span style={{fontSize:10,color:"var(--bl)",fontWeight:600}}>R${c.value.toLocaleString()}</span>}
+                    {enrollDate&&<span style={{fontSize:9,color:"var(--mu2)"}}>✓ {enrollDate}</span>}
                   </div>;})}
                 {live.notes&&<div style={{marginTop:8,background:"#EEF4FF",borderRadius:8,padding:"6px 10px",fontSize:11,color:"var(--bl)"}}>💬 {live.notes}</div>}
               </div>
@@ -693,9 +772,11 @@ function StudentsPage({students,setStudents,courses,sales,setSales,templates}){
                       {Array.from({length:live.installments},(_,idx)=>{
                         const paid=pm.includes(idx);const isCur=idx===ci;
                         const mo=live.startMonth?MOPT[((parseInt(live.startMonth.slice(5,7))-1)+idx)%12]:`P${idx+1}`;
-                        return <button key={idx} onClick={()=>togglePaid(live.id,idx)} style={{width:34,height:34,borderRadius:7,border:`2px solid ${paid?"var(--gn)":isCur?"var(--bl)":"#DDE3EE"}`,background:paid?"#F0FDF4":isCur?"#EEF4FF":"#fff",color:paid?"var(--gn)":isCur?"var(--bl)":"var(--mu)",fontSize:9,fontWeight:700,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",position:"relative"}}>
+                        const dueM=instDueDate(live.startMonth,idx);
+                        return <button key={idx} onClick={()=>togglePaid(live.id,idx)} title={dueM?`Vencimento: ${dueM}`:""} style={{width:38,height:38,borderRadius:7,border:`2px solid ${paid?"var(--gn)":isCur?"var(--bl)":"#DDE3EE"}`,background:paid?"#F0FDF4":isCur?"#EEF4FF":"#fff",color:paid?"var(--gn)":isCur?"var(--bl)":"var(--mu)",fontSize:9,fontWeight:700,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",position:"relative"}}>
                           {isCur&&!paid&&<div style={{position:"absolute",top:-3,right:-3,width:8,height:8,borderRadius:"50%",background:"var(--bl)"}}/>}
                           <span>{mo}</span><span>{paid?"✓":"—"}</span>
+                          {dueM&&<span style={{fontSize:8,color:paid?"var(--gn)":isCur&&!paid?"var(--rd)":"var(--mu2)"}}>{dueM.slice(5)}</span>}
                         </button>;
                       })}
                     </div>
@@ -703,7 +784,7 @@ function StudentsPage({students,setStudents,courses,sales,setSales,templates}){
                   </div>;
                 })()}
                 <div style={{display:"flex",gap:7,marginTop:6}}>
-                  <Btn sz="sm" v="ghost" onClick={()=>{setForm({...live});setEditingSt(live);setShowF(true);}}>✏️ Editar</Btn>
+                  <Btn sz="sm" v="ghost" onClick={()=>{setForm({...live,contractFile:live.contractFile||null,enrollmentDates:live.enrollmentDates||{},pedDocs:live.pedDocs||{}});setEditingSt(live);setShowF(true);}}>✏️ Editar</Btn>
                   <button onClick={()=>{setWaM(live);setWaMsg("");}} style={{flex:1,background:"#F0FDF4",border:"1.5px solid #BBF7D0",borderRadius:9,padding:"7px 9px",color:"var(--gn)",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans"}}>💬 WhatsApp</button>
                 </div>
               </div>
@@ -711,19 +792,15 @@ function StudentsPage({students,setStudents,courses,sales,setSales,templates}){
           </div>}
         </div>;
       })}
+      {!filtered.length&&<div style={{textAlign:"center",padding:"28px 0",color:"var(--mu)",fontSize:12}}>Nenhum aluno encontrado</div>}
     </div>
 
-    {/* WA Modal */}
     {waM&&<Modal title="Lembrete WhatsApp" sub={waM.name} onClose={()=>{setWaM(null);setWaMsg("");}}>
       <div style={{fontSize:11,color:"var(--bl)",fontWeight:700,marginBottom:9,background:"#EEF4FF",padding:"8px 12px",borderRadius:8}}>Para: {waM.name} · {(waM.phone||"").slice(0,14)||"sem telefone"}</div>
       {templates.length>0&&<><Lbl>Usar modelo salvo</Lbl>
         <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:13}}>
-          {templates.map(t=><button key={t.id} onClick={()=>{
-            const courseName=(waM.courses||[]).map(cid=>courses.find(c=>c.id===cid)?.name||"").filter(Boolean).join(", ")||"";
-            setWaMsg(t.text.replace("{nome}",waM.name||"").replace("{curso}",courseName).replace("{data}",""));
-          }} style={{background:"#F7F9FC",border:"1.5px solid #DDE3EE",borderRadius:8,padding:"6px 12px",fontSize:11,color:"var(--mu)",cursor:"pointer",fontFamily:"DM Sans",fontWeight:600}}>{t.name}</button>)}
-        </div>
-      </>}
+          {templates.map(t=><button key={t.id} onClick={()=>{const cn=(waM.courses||[]).map(cid=>courses.find(c=>c.id===cid)?.name||"").filter(Boolean).join(", ")||"";setWaMsg(t.text.replace("{nome}",waM.name||"").replace("{curso}",cn).replace("{data}",""));}} style={{background:"#F7F9FC",border:"1.5px solid #DDE3EE",borderRadius:8,padding:"6px 12px",fontSize:11,color:"var(--mu)",cursor:"pointer",fontFamily:"DM Sans",fontWeight:600}}>{t.name}</button>)}
+        </div></>}
       <div style={{background:"#F5FDF7",border:"1.5px solid #BBF7D0",borderRadius:11,padding:13,marginBottom:11}}>
         <textarea value={waMsg} onChange={e=>setWaMsg(e.target.value)} rows={5} placeholder="Escreva ou selecione um modelo acima..." style={{width:"100%",background:"transparent",border:"none",outline:"none",color:"var(--tx)",fontSize:13,lineHeight:1.7,resize:"none",fontFamily:"DM Sans"}}/>
       </div>
@@ -732,14 +809,14 @@ function StudentsPage({students,setStudents,courses,sales,setSales,templates}){
       </button>
     </Modal>}
 
-    {/* Edit/Create modal */}
     {showF&&<Modal title={editingSt?"Editar Aluno":"Cadastrar Aluno"} onClose={()=>{setShowF(false);setEditingSt(null);}}>
       <div className="g2"><Inp label="Nome *" value={form.name} onChange={e=>ff({name:e.target.value})}/><Inp label="E-mail" value={form.email} onChange={e=>ff({email:e.target.value})} type="email"/><Inp label="WhatsApp" value={form.phone} onChange={e=>ff({phone:e.target.value})}/><Inp label="CPF" value={form.cpf} onChange={e=>ff({cpf:e.target.value})}/><Inp label="Cidade" value={form.city} onChange={e=>ff({city:e.target.value})}/><Inp label="Ingresso" value={form.since} onChange={e=>ff({since:e.target.value})} type="month"/></div>
       <Lbl>Cursos matriculados</Lbl>
       <div style={{display:"flex",flexWrap:"wrap",gap:7,marginBottom:13}}>
-        {courses.map(c=>{const en=(form.courses||[]).includes(c.id);return <button key={c.id} onClick={()=>ff({courses:en?(form.courses||[]).filter(x=>x!==c.id):[...(form.courses||[]),c.id]})} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 11px",borderRadius:9,border:`1.5px solid ${en?"var(--bl)":"#DDE3EE"}`,background:en?"#EEF4FF":"#F7F9FC",cursor:"pointer",transition:"all .15s"}}>
+        {courses.map(c=>{const en=(form.courses||[]).includes(c.id);const enrolled=students.filter(s=>s.courses.includes(c.id)&&s.id!==editingSt?.id);const isFull=enrolled.length>=c.capacity;return <button key={c.id} onClick={()=>ff({courses:en?(form.courses||[]).filter(x=>x!==c.id):[...(form.courses||[]),c.id]})} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 11px",borderRadius:9,border:`1.5px solid ${en?"var(--bl)":isFull?"var(--rd)":"#DDE3EE"}`,background:en?"#EEF4FF":isFull?"#FEF2F2":"#F7F9FC",cursor:"pointer",transition:"all .15s"}}>
           <div style={{width:14,height:14,borderRadius:3,border:`2px solid ${en?"var(--bl)":"#DDE3EE"}`,background:en?"var(--bl)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,color:"#fff",fontWeight:700}}>{en?"✓":""}</div>
-          <span style={{fontSize:11,color:en?"var(--bl)":"var(--mu)",fontWeight:en?700:400}}>{c.name.split("–")[0].trim()}</span>
+          <span style={{fontSize:11,color:en?"var(--bl)":isFull?"var(--rd)":"var(--mu)",fontWeight:en?700:400}}>{c.name.split("–")[0].trim()}</span>
+          {isFull&&!en&&<Chip color="var(--rd)" sm>Lotado</Chip>}
           {c.value>0&&<span style={{fontSize:10,color:en?"var(--bl)":"var(--mu2)"}}>R${c.value.toLocaleString()}</span>}
         </button>;})}
       </div>
@@ -751,43 +828,37 @@ function StudentsPage({students,setStudents,courses,sales,setSales,templates}){
       <div className="g2"><Inp label="Valor Total (R$)" value={form.totalValue} onChange={e=>ff({totalValue:e.target.value})} type="number"/>{form.pType==="parcelado"&&<Inp label="Nº Parcelas" value={form.installments} onChange={e=>ff({installments:+e.target.value})} type="number"/>}</div>
       {form.pType==="parcelado"&&<div className="g2"><Inp label="Valor Parcela (R$)" value={form.instValue} onChange={e=>ff({instValue:e.target.value})} type="number"/><Inp label="Início Parcelas" value={form.startMonth} onChange={e=>ff({startMonth:e.target.value})} type="month"/></div>}
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:13}}><input type="checkbox" id="ctr" checked={!!form.contract} onChange={e=>ff({contract:e.target.checked})} style={{width:15,height:15,accentColor:"var(--bl)"}}/><label htmlFor="ctr" style={{fontSize:13,color:"var(--mu)",cursor:"pointer"}}>Contrato assinado</label></div>
+      <FileUpload label="Contrato em PDF" file={form.contractFile} onFile={f=>ff({contractFile:f})} accept=".pdf"/>
       <Inp label="Observações" value={form.notes} onChange={e=>ff({notes:e.target.value})} rows={2}/>
-      {!editingSt&&(form.courses||[]).length>0&&<div style={{background:"#EEF4FF",border:"1.5px solid #C7D7F5",borderRadius:9,padding:"8px 12px",fontSize:12,color:"var(--bl)",marginBottom:11}}>✓ Vendas serão geradas automaticamente para os cursos selecionados</div>}
       <Btn style={{width:"100%"}} onClick={save}>{editingSt?"Salvar alterações":"Cadastrar Aluno"}</Btn>
     </Modal>}
   </div>;
 }
 
 /* ══════════════════════════════════════════════════
-   CURSOS — shows linked students from state
+   CURSOS — enrollment date + checklist por curso
 ══════════════════════════════════════════════════ */
 function CoursesPage({courses,setCourses,students,setStudents}){
   const[sel,setSel]=useState(null);const[showF,setShowF]=useState(false);const[tab,setTab]=useState("lista");
   const[calM,setCalM]=useState(new Date(2025,2,1));
-  const e={name:"",type:CTYPES[0],date:"",end:"",modality:MODS[0],value:"",capacity:12,enrolled:[],waitlist:[],instructor:"",desc:""};
+  const[clInput,setClInput]=useState("");
+  const e={name:"",type:CTYPES[0],date:"",end:"",modality:MODS[0],value:"",capacity:12,enrolled:[],waitlist:[],instructor:"",desc:"",enrollmentDeadline:"",checklist:[]};
   const[form,setForm]=useState(e);const f=v=>setForm(p=>({...p,...v}));
+  function addCLItem(){if(!clInput.trim())return;f({checklist:[...(form.checklist||[]),clInput.trim()]});setClInput("");}
+  function removeCLItem(i){f({checklist:(form.checklist||[]).filter((_,idx)=>idx!==i)});}
   function save(){if(!form.name.trim())return;if(sel?.id)setCourses(cs=>cs.map(c=>c.id===sel.id?{...form,id:c.id}:c));else setCourses(cs=>[...cs,{...form,id:Date.now()}]);setShowF(false);setSel(null);setForm(e);}
   const cy=calM.getFullYear(),cm=calM.getMonth();
   const fd=new Date(cy,cm,1).getDay(),dm=new Date(cy,cm+1,0).getDate();
   function onDay(d){const ds=`${cy}-${String(cm+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;return courses.filter(c=>c.date<=ds&&c.end>=ds);}
-  // Get enrolled from students.courses (live) + course.enrolled (seed)
-  function getEnrolled(courseId){
-    const fromStudents=students.filter(s=>s.courses.includes(courseId));
-    return fromStudents;
-  }
-  function getWaitlist(courseId){
-    const c=courses.find(x=>x.id===courseId);
-    return (c?.waitlist||[]).map(sid=>students.find(s=>s.id===sid)).filter(Boolean);
-  }
-  // Move from waitlist to enrolled
+  function getEnrolled(courseId){return students.filter(s=>s.courses.includes(courseId));}
+  function getWaitlist(courseId){const c=courses.find(x=>x.id===courseId);return(c?.waitlist||[]).map(sid=>students.find(s=>s.id===sid)).filter(Boolean);}
   function confirmFromWait(courseId,studentId){
     const course=courses.find(c=>c.id===courseId);
     const enrolled=getEnrolled(courseId);
     if(course&&enrolled.length>=course.capacity){alert("Turma já está com capacidade máxima!");return;}
     setCourses(cs=>cs.map(c=>c.id!==courseId?c:{...c,waitlist:(c.waitlist||[]).filter(x=>x!==studentId)}));
-    setStudents(ss=>ss.map(s=>s.id!==studentId?s:{...s,courses:[...new Set([...(s.courses||[]),courseId])]}));
+    setStudents(ss=>ss.map(s=>s.id!==studentId?s:{...s,courses:[...new Set([...(s.courses||[]),courseId])],enrollmentDates:{...(s.enrollmentDates||{}),[courseId]:new Date().toISOString().slice(0,10)}}));
   }
-
   return <div style={{animation:"up .4s ease"}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
       <div><h1 style={{fontFamily:"Playfair Display",fontSize:24,fontWeight:700}}>Cursos & Calendário</h1><p style={{color:"var(--mu)",fontSize:11}}>{courses.length} eventos</p></div>
@@ -795,37 +866,39 @@ function CoursesPage({courses,setCourses,students,setStudents}){
     </div>
     {tab==="lista"?<div style={{display:"flex",flexDirection:"column",gap:9}}>
       {[...courses].sort((a,b)=>a.date.localeCompare(b.date)).map((c,i)=>{
-        const enrolled=getEnrolled(c.id);const waitlist=getWaitlist(c.id);const ex=sel?.id===c.id;
+        const enrolled=getEnrolled(c.id);const waitlist=getWaitlist(c.id);const ex=sel?.id===c.id;const full=enrolled.length>=c.capacity;
         return <div key={c.id} style={{background:"#fff",borderRadius:14,border:`1.5px solid ${ex?"var(--bl)":"#E5EAF3"}`,borderLeft:`4px solid ${KCL[c.type]||"var(--mu)"}`,overflow:"hidden",animation:`sr .3s ease ${i*.05}s both`,boxShadow:"var(--shadow)"}}>
           <div onClick={()=>setSel(p=>p?.id===c.id?null:c)} style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",padding:"13px 16px",cursor:"pointer"}}>
             <div style={{flex:1}}>
-              <div style={{display:"flex",gap:6,marginBottom:4}}><Chip color={KCL[c.type]}>{c.type}</Chip><Chip color={c.modality==="Online"?"var(--bl)":"var(--te)"}>{c.modality}</Chip></div>
+              <div style={{display:"flex",gap:6,marginBottom:4}}><Chip color={KCL[c.type]}>{c.type}</Chip><Chip color={c.modality==="Online"?"var(--bl)":"var(--te)"}>{c.modality}</Chip>{full&&<Chip color="var(--rd)">Turma Lotada</Chip>}</div>
               <div style={{fontWeight:700,fontSize:14,color:"var(--tx)"}}>{c.name}</div>
               <div style={{fontSize:11,color:"var(--mu)",marginTop:2}}>📅 {c.date}{c.end!==c.date?" → "+c.end:""} · ✦ {c.instructor}</div>
-              {c.desc&&<div style={{fontSize:11,color:"var(--mu)",marginTop:3,lineHeight:1.5}}>{c.desc}</div>}
+              {c.enrollmentDeadline&&<div style={{fontSize:10,color:"var(--am)",marginTop:2,fontWeight:600}}>⏰ Prazo matrícula: {c.enrollmentDeadline}</div>}
+              {c.checklist?.length>0&&<div style={{fontSize:10,color:"var(--pu)",marginTop:2}}>📋 {c.checklist.length} itens de checklist</div>}
             </div>
             <div style={{textAlign:"right",marginLeft:11}}>
               {c.value>0&&<div style={{fontWeight:700,color:"var(--bl)",fontSize:14}}>R${(+c.value).toLocaleString()}</div>}
-              <div style={{fontSize:11,color:enrolled.length>=c.capacity?"var(--rd)":"var(--gn)",marginTop:2,fontWeight:600}}>{enrolled.length}/{c.capacity} vagas</div>
+              <div style={{fontSize:11,color:full?"var(--rd)":"var(--gn)",marginTop:2,fontWeight:600}}>{enrolled.length}/{c.capacity} vagas</div>
               {waitlist.length>0&&<div style={{fontSize:10,color:"var(--am)",fontWeight:600}}>⏳ {waitlist.length} espera</div>}
             </div>
           </div>
           {ex&&<div style={{borderTop:"1.5px solid #E5EAF3",padding:"13px 16px",background:"#F7F9FC"}}>
             <div className="g2">
               <div>
-                <div style={{fontSize:10,color:"var(--bl)",fontWeight:600,letterSpacing:.5,marginBottom:8,textTransform:"uppercase"}}>Matriculados ({enrolled.length})</div>
-                {enrolled.length===0?<div style={{fontSize:11,color:"var(--mu2)"}}>Nenhum ainda</div>:enrolled.map(st=><div key={st.id} style={{fontSize:12,padding:"4px 0",borderBottom:"1px solid var(--b)",color:"var(--tx)",display:"flex",alignItems:"center",gap:6}}><span style={{color:"var(--gn)"}}>✅</span>{st.name}</div>)}
+                <div style={{fontSize:10,color:"var(--bl)",fontWeight:600,letterSpacing:.5,marginBottom:8,textTransform:"uppercase"}}>Matriculados ({enrolled.length}/{c.capacity})</div>
+                {enrolled.length===0?<div style={{fontSize:11,color:"var(--mu2)"}}>Nenhum ainda</div>:enrolled.map(st=>{const ed=(st.enrollmentDates||{})[c.id];return <div key={st.id} style={{fontSize:12,padding:"4px 0",borderBottom:"1px solid var(--b)",color:"var(--tx)",display:"flex",alignItems:"center",gap:6}}><span style={{color:"var(--gn)"}}>✅</span>{st.name}{ed&&<span style={{fontSize:9,color:"var(--mu2)",marginLeft:"auto"}}>desde {ed}</span>}</div>;})}
               </div>
               <div>
                 <div style={{fontSize:10,color:"var(--am)",fontWeight:600,letterSpacing:.5,marginBottom:8,textTransform:"uppercase"}}>Lista de Espera ({waitlist.length})</div>
-                {waitlist.length===0?<div style={{fontSize:11,color:"var(--mu2)"}}>Nenhuma</div>:waitlist.map(st=><div key={st.id} style={{display:"flex",alignItems:"center",gap:7,padding:"5px 0",borderBottom:"1px solid var(--b)"}}>
+                {waitlist.length===0?<div style={{fontSize:11,color:"var(--mu2)"}}>{full?"Turma lotada":"Nenhuma"}</div>:waitlist.map(st=><div key={st.id} style={{display:"flex",alignItems:"center",gap:7,padding:"5px 0",borderBottom:"1px solid var(--b)"}}>
                   <span style={{fontSize:11,flex:1,color:"var(--am)",fontWeight:600}}>⏳ {st.name}</span>
                   <Btn sz="sm" v="green" onClick={()=>confirmFromWait(c.id,st.id)}>Confirmar</Btn>
                 </div>)}
+                {c.checklist?.length>0&&<><Divr/><div style={{fontSize:10,color:"var(--pu)",fontWeight:600,marginBottom:6}}>Checklist do curso</div>{c.checklist.map((it,i)=><div key={i} style={{fontSize:11,color:"var(--mu)",padding:"2px 0"}}>• {it}</div>)}</>}
               </div>
             </div>
             <div style={{display:"flex",gap:7,marginTop:12}}>
-              <Btn sz="sm" v="ghost" onClick={e=>{e.stopPropagation();setForm({...c});setShowF(true);}}>Editar</Btn>
+              <Btn sz="sm" v="ghost" onClick={e=>{e.stopPropagation();setForm({...c,enrollmentDeadline:c.enrollmentDeadline||"",checklist:c.checklist||[]});setShowF(true);}}>Editar</Btn>
               <Btn sz="sm" v="danger" onClick={e=>{e.stopPropagation();setCourses(cs=>cs.filter(x=>x.id!==c.id));setSel(null);}}>Excluir</Btn>
             </div>
           </div>}
@@ -848,18 +921,38 @@ function CoursesPage({courses,setCourses,students,setStudents}){
         <div style={{padding:"9px 18px",display:"flex",gap:11,borderTop:"1px solid var(--b)",flexWrap:"wrap"}}>{Object.entries(KCL).map(([t,c])=><div key={t} style={{display:"flex",alignItems:"center",gap:5}}><Dot color={c}/><span style={{fontSize:10,color:"var(--mu)"}}>{t}</span></div>)}</div>
       </div>
     )}
-    {showF&&<Modal title="Cadastrar Evento" onClose={()=>setShowF(false)}>
+    {showF&&<Modal title="Cadastrar Evento" onClose={()=>setShowF(false)} wide>
       <Inp label="Nome *" value={form.name} onChange={e=>f({name:e.target.value})}/>
-      <Inp label="Descrição" value={form.desc} onChange={e=>f({desc:e.target.value})} rows={2} placeholder="Conteúdo, pré-requisitos, objetivos..."/>
-      <div className="g2"><Sel label="Tipo" value={form.type} onChange={e=>f({type:e.target.value})} options={CTYPES}/><Sel label="Modalidade" value={form.modality} onChange={e=>f({modality:e.target.value})} options={MODS}/><Inp label="Data início" value={form.date} onChange={e=>f({date:e.target.value})} type="date"/><Inp label="Data fim" value={form.end} onChange={e=>f({end:e.target.value})} type="date"/><Inp label="Valor (R$)" value={form.value} onChange={e=>f({value:e.target.value})} type="number"/><Inp label="Vagas" value={form.capacity} onChange={e=>f({capacity:+e.target.value})} type="number"/></div>
+      <Inp label="Descrição" value={form.desc} onChange={e=>f({desc:e.target.value})} rows={2}/>
+      <div className="g2">
+        <Sel label="Tipo" value={form.type} onChange={e=>f({type:e.target.value})} options={CTYPES}/>
+        <Sel label="Modalidade" value={form.modality} onChange={e=>f({modality:e.target.value})} options={MODS}/>
+        <Inp label="Data início" value={form.date} onChange={e=>f({date:e.target.value})} type="date"/>
+        <Inp label="Data fim" value={form.end} onChange={e=>f({end:e.target.value})} type="date"/>
+        <Inp label="Valor (R$)" value={form.value} onChange={e=>f({value:e.target.value})} type="number"/>
+        <Inp label="Vagas" value={form.capacity} onChange={e=>f({capacity:+e.target.value})} type="number"/>
+        <Inp label="Prazo de Matrícula" value={form.enrollmentDeadline} onChange={e=>f({enrollmentDeadline:e.target.value})} type="date"/>
+      </div>
       <Inp label="Instrutor(a)" value={form.instructor} onChange={e=>f({instructor:e.target.value})}/>
+      <Lbl>Checklist do Curso (itens obrigatórios no pedagógico)</Lbl>
+      <div style={{display:"flex",gap:8,marginBottom:8}}>
+        <input value={clInput} onChange={e=>setClInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCLItem()} placeholder="Novo item de checklist..." style={{flex:1,background:"#F7F9FC",border:"1.5px solid #DDE3EE",borderRadius:9,padding:"8px 12px",color:"var(--tx)",fontSize:12,outline:"none",fontFamily:"DM Sans"}}/>
+        <Btn sz="sm" onClick={addCLItem}>+</Btn>
+      </div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:13}}>
+        {(form.checklist||[]).map((it,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:5,background:"#F5F1FE",borderRadius:99,padding:"4px 10px",border:"1px solid #DDD0F7"}}>
+          <span style={{fontSize:11,color:"var(--pu)",fontWeight:600}}>{it}</span>
+          <button onClick={()=>removeCLItem(i)} style={{background:"transparent",border:"none",color:"var(--mu2)",cursor:"pointer",fontSize:13}}>×</button>
+        </div>)}
+        {!(form.checklist||[]).length&&<div style={{fontSize:11,color:"var(--mu2)"}}>Nenhum item. Alunos sem checklist verão apenas upload de certificado.</div>}
+      </div>
       <Btn style={{width:"100%"}} onClick={save}>{sel?.id?"Salvar":"Cadastrar"}</Btn>
     </Modal>}
   </div>;
 }
 
 /* ══════════════════════════════════════════════════
-   FINANCEIRO — reads from real sales state
+   FINANCEIRO — receita confirmada + inadimplentes
 ══════════════════════════════════════════════════ */
 function FinancialPage({sales,setSales,courses,students}){
   const[tab,setTab]=useState("vendas");
@@ -878,7 +971,7 @@ function FinancialPage({sales,setSales,courses,students}){
   const tT=t=>sales.filter(s=>s.type===t).reduce((s,v)=>s+(+v.value||0),0);
   const gP=t=>Math.min(100,Math.round((tT(t)/(goals[t]||1))*100));
   const sName=id=>{const s=students.find(x=>x.id===id);return s?.name||"—";};
-  // Chart from actual sales
+  const confirmed=confirmedRevenue(students);
   const monthMap={};
   sales.forEach(s=>{const m=s.date?.slice(0,7);if(!m)return;if(!monthMap[m])monthMap[m]={};monthMap[m][s.type]=(monthMap[m][s.type]||0)+(+s.value||0);});
   const chartData=Object.keys(monthMap).sort().slice(-7).map(m=>{
@@ -887,13 +980,14 @@ function FinancialPage({sales,setSales,courses,students}){
     else{row.Real=monthMap[m][cF]||0;row.Meta=goals[cF]||0;}
     return row;
   });
+  const inadimplentes=students.filter(isOverdue);
   function save(){if(!form.desc||!form.value)return;setSales(ss=>[...ss,{...form,id:Date.now(),value:+form.value}]);setShowAdd(false);setForm(e);}
   return <div style={{animation:"up .4s ease"}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
       <h1 style={{fontFamily:"Playfair Display",fontSize:24,fontWeight:700}}>Financeiro</h1>
       <Btn sz="sm" onClick={()=>setShowAdd(true)}>+ Registrar Venda</Btn>
     </div>
-    <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:16}}>
+    <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:12}}>
       {STYPES.map(t=><div key={t} style={{background:"#fff",borderRadius:14,padding:"12px 15px",flex:1,minWidth:110,border:"1px solid var(--b)",boxShadow:"var(--shadow)"}}>
         <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:10,color:"var(--mu)",fontWeight:600,textTransform:"uppercase",letterSpacing:.5}}>{t}</span><Dot color={TCL[t]} size={7}/></div>
         <div style={{fontFamily:"Playfair Display",fontSize:20,fontWeight:700,color:TCL[t]}}>R${tT(t).toLocaleString()}</div>
@@ -901,8 +995,16 @@ function FinancialPage({sales,setSales,courses,students}){
         <div style={{fontSize:9,color:"var(--mu)",marginTop:2}}>{gP(t)}% · meta R${(goals[t]||0).toLocaleString()}</div>
       </div>)}
     </div>
+    <div style={{background:"#EEF4FF",borderRadius:12,padding:"12px 16px",marginBottom:16,border:"1px solid #C7D7F5",display:"flex",gap:16,alignItems:"center",flexWrap:"wrap"}}>
+      <div><div style={{fontSize:10,color:"var(--bl)",fontWeight:600,textTransform:"uppercase",letterSpacing:.5}}>Receita Confirmada (alunos)</div><div style={{fontFamily:"Playfair Display",fontSize:22,fontWeight:700,color:"var(--gn)"}}>R${confirmed.toLocaleString()}</div><div style={{fontSize:10,color:"var(--mu)"}}>Pagamentos ticados/confirmados no módulo Alunos</div></div>
+      <div style={{borderLeft:"1px solid var(--b)",paddingLeft:16}}>
+        <div style={{fontSize:10,color:"var(--rd)",fontWeight:600,textTransform:"uppercase",letterSpacing:.5}}>Inadimplentes</div>
+        <div style={{fontFamily:"Playfair Display",fontSize:22,fontWeight:700,color:"var(--rd)"}}>{inadimplentes.length}</div>
+        <div style={{fontSize:10,color:"var(--mu)"}}>alunos com pagamento em atraso</div>
+      </div>
+    </div>
     <div style={{display:"flex",gap:0,borderBottom:"2px solid var(--b)",marginBottom:16}}>
-      {[["vendas","◈ Vendas"],["grafico","▦ Gráfico"],["metas","❋ Metas"]].map(([id,lbl])=><button key={id} onClick={()=>setTab(id)} style={{padding:"8px 15px",border:"none",background:"transparent",fontFamily:"DM Sans",fontSize:12,fontWeight:600,cursor:"pointer",color:tab===id?"var(--bl)":"var(--mu)",borderBottom:`2px solid ${tab===id?"var(--bl)":"transparent"}`,marginBottom:-2}}>{lbl}</button>)}
+      {[["vendas","◈ Vendas"],["grafico","▦ Gráfico"],["metas","❋ Metas"],["inadimplentes","⚠ Inadimplentes"]].map(([id,lbl])=><button key={id} onClick={()=>setTab(id)} style={{padding:"8px 15px",border:"none",background:"transparent",fontFamily:"DM Sans",fontSize:12,fontWeight:600,cursor:"pointer",color:tab===id?"var(--bl)":"var(--mu)",borderBottom:`2px solid ${tab===id?"var(--bl)":"transparent"}`,marginBottom:-2}}>{lbl}{id==="inadimplentes"&&inadimplentes.length>0&&<span style={{background:"var(--rd)",color:"#fff",borderRadius:99,padding:"1px 6px",fontSize:9,marginLeft:5,fontWeight:700}}>{inadimplentes.length}</span>}</button>)}
     </div>
     {tab==="vendas"&&<>
       <div style={{display:"flex",gap:8,marginBottom:11,flexWrap:"wrap"}}>
@@ -924,7 +1026,7 @@ function FinancialPage({sales,setSales,courses,students}){
                 <td style={{padding:"9px 12px",whiteSpace:"nowrap"}}><Chip color={TCL[s.type]} sm>{s.type}</Chip></td>
                 <td style={{padding:"9px 12px",fontWeight:700,color:"var(--bl)",whiteSpace:"nowrap"}}>R${(+s.value).toLocaleString()}</td>
               </tr>)}
-              <tr style={{background:"#F7F9FC"}}><td colSpan={5} style={{padding:"9px 12px",fontWeight:700,textAlign:"right",color:"var(--mu)"}}>Total:</td><td style={{padding:"9px 12px",fontWeight:800,color:"var(--bl)",fontSize:14}}>R${total.toLocaleString()}</td></tr>
+              <tr style={{background:"#F7F9FC"}}><td colSpan={5} style={{padding:"9px 12px",fontWeight:700,textAlign:"right",color:"var(--mu)"}}>Total filtrado:</td><td style={{padding:"9px 12px",fontWeight:800,color:"var(--bl)",fontSize:14}}>R${total.toLocaleString()}</td></tr>
             </tbody>
           </table>
         </div>
@@ -936,7 +1038,6 @@ function FinancialPage({sales,setSales,courses,students}){
       </div>
       <div style={{background:"#fff",borderRadius:16,padding:20,border:"1px solid var(--b)",boxShadow:"var(--shadow)"}}>
         <div style={{fontFamily:"Playfair Display",fontSize:16,fontWeight:600,marginBottom:3}}>Receita Real vs Meta</div>
-        <div style={{fontSize:11,color:"var(--mu)",marginBottom:16}}>Calculado das vendas reais</div>
         {chartData.length>0?<ResponsiveContainer width="100%" height={200}>
           <LineChart data={chartData} margin={{top:8,right:8,left:-20,bottom:0}}>
             <XAxis dataKey="mes" tick={{fontSize:10,fill:"#9AAAC0"}} axisLine={false} tickLine={false}/>
@@ -944,10 +1045,10 @@ function FinancialPage({sales,setSales,courses,students}){
             <Tooltip formatter={(val)=>`R$${val.toLocaleString("pt-BR")}`} contentStyle={{background:"#fff",border:"1px solid #DDE3EE",borderRadius:8,fontSize:12,boxShadow:"0 4px 16px rgba(30,40,80,.12)"}}/>
             <CartesianGrid strokeDasharray="3 3" stroke="#EEF1F7" vertical={false}/>
             <Legend wrapperStyle={{fontSize:12,color:"#6B7A99",paddingTop:8}}/>
-            <Line type="monotone" dataKey="Real" name="Real" stroke="#3066BE" strokeWidth={3} dot={{fill:"#3066BE",r:5,strokeWidth:0}} activeDot={{r:7,fill:"#3066BE"}} isAnimationActive={true}/>
-            <Line type="monotone" dataKey="Meta" name="Meta" stroke="#6244B8" strokeWidth={2} strokeDasharray="8 4" dot={{fill:"#6244B8",r:3,strokeWidth:0}} activeDot={{r:5}} isAnimationActive={true}/>
+            <Line type="monotone" dataKey="Real" stroke="#3066BE" strokeWidth={3} dot={{fill:"#3066BE",r:5,strokeWidth:0}}/>
+            <Line type="monotone" dataKey="Meta" stroke="#6244B8" strokeWidth={2} strokeDasharray="8 4" dot={{fill:"#6244B8",r:3,strokeWidth:0}}/>
           </LineChart>
-        </ResponsiveContainer>:<div style={{textAlign:"center",padding:"24px 0",color:"var(--mu)",fontSize:12}}>Sem dados ainda</div>}
+        </ResponsiveContainer>:<div style={{textAlign:"center",padding:"24px 0",color:"var(--mu)",fontSize:12}}>Sem dados</div>}
       </div>
     </>}
     {tab==="metas"&&<>
@@ -965,12 +1066,32 @@ function FinancialPage({sales,setSales,courses,students}){
         <div style={{display:"flex",gap:8,marginTop:8}}><Btn style={{flex:1}} onClick={()=>{setGoals({...eG});setShowGE(false);}}>Salvar</Btn><Btn v="ghost" onClick={()=>setShowGE(false)}>Cancelar</Btn></div>
       </div>}
     </>}
+    {tab==="inadimplentes"&&<div>
+      <div style={{marginBottom:13,fontSize:12,color:"var(--mu)"}}>Alunos com pagamento em atraso ou pendente</div>
+      {inadimplentes.length===0?<div style={{textAlign:"center",padding:"32px 0",color:"var(--gn)",fontSize:14,fontWeight:600}}>🎉 Nenhum inadimplente!</div>:inadimplentes.map((s,i)=>{
+        const pd=isPaid(s);const od=isOverdue(s);
+        const pendingVal=s.pType==="parcelado"?((s.installments||0)-(s.paidMonths||[]).length)*(+s.instValue||0):(+s.totalValue||0);
+        return <div key={s.id} style={{background:"#fff",borderRadius:14,padding:"14px 16px",border:"1.5px solid #FECACA",marginBottom:9,animation:`sr .3s ease ${i*.05}s both`,boxShadow:"var(--shadow)"}}>
+          <div style={{display:"flex",alignItems:"center",gap:11}}>
+            <Av letter={s.name[0]} size={36} color="var(--rd)"/>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:700,fontSize:13}}>{s.name}</div>
+              <div style={{fontSize:11,color:"var(--mu)",marginTop:2}}>{s.email} · {s.phone}</div>
+              <div style={{display:"flex",gap:6,marginTop:5,flexWrap:"wrap"}}>
+                <Chip color="var(--rd)" sm>{s.pType==="parcelado"?`${(s.paidMonths||[]).length}/${s.installments} parcelas pagas`:"À vista — pendente"}</Chip>
+                <Chip color="var(--am)" sm>Pendente: R${pendingVal.toLocaleString()}</Chip>
+              </div>
+            </div>
+            {s.phone&&<a href={`https://wa.me/55${s.phone.replace(/\D/g,"")}`} target="_blank" rel="noreferrer" style={{background:"linear-gradient(135deg,#25D366,#128C7E)",border:"none",borderRadius:9,padding:"8px 12px",color:"#fff",fontSize:11,fontWeight:700,textDecoration:"none",fontFamily:"DM Sans"}}>💬 WA</a>}
+          </div>
+        </div>;
+      })}
+    </div>}
     {showAdd&&<Modal title="Registrar Venda Manual" onClose={()=>setShowAdd(false)}>
       <div className="g2"><Inp label="Data" value={form.date} onChange={e=>f({date:e.target.value})} type="date"/><Inp label="Descrição *" value={form.desc} onChange={e=>f({desc:e.target.value})}/></div>
       <Lbl>Aluno (opcional)</Lbl>
       <select value={form.studentId||""} onChange={e=>f({studentId:e.target.value?+e.target.value:null})} style={{width:"100%",background:"#F7F9FC",border:"1.5px solid #DDE3EE",borderRadius:10,padding:"10px 13px",color:"var(--tx)",fontSize:13,outline:"none",fontFamily:"DM Sans",marginBottom:13}}>
-        <option value="">Selecionar aluno...</option>
-        {students.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
+        <option value="">Selecionar aluno...</option>{students.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
       </select>
       <div className="g2"><Inp label="Valor (R$) *" value={form.value} onChange={e=>f({value:e.target.value})} type="number"/><Sel label="Pagamento" value={form.payment} onChange={e=>f({payment:e.target.value})} options={PAYS}/></div>
       <Lbl>Tipo</Lbl><div style={{display:"flex",gap:7,marginBottom:13,flexWrap:"wrap"}}>{STYPES.map(t=><button key={t} onClick={()=>f({type:t})} style={{flex:1,background:form.type===t?`${TCL[t]}15`:"#F7F9FC",border:`1.5px solid ${form.type===t?TCL[t]:"#DDE3EE"}`,color:form.type===t?TCL[t]:"var(--mu)",borderRadius:9,padding:"8px 0",fontSize:12,fontWeight:600,cursor:"pointer"}}>{t}</button>)}</div>
@@ -980,7 +1101,7 @@ function FinancialPage({sales,setSales,courses,students}){
 }
 
 /* ══════════════════════════════════════════════════
-   CHECKLIST with SLA
+   CHECKLIST
 ══════════════════════════════════════════════════ */
 function ChecklistPage({checks,setChecks}){
   const[nT,setNT]=useState("");const[nP,setNP]=useState("Média");const[nD,setND]=useState("");const[nA,setNA]=useState("");
@@ -1015,7 +1136,7 @@ function ChecklistPage({checks,setChecks}){
           <div style={{display:"flex",alignItems:"center",gap:5}}><span style={{fontSize:11,color:"var(--mu)"}}>Avisar:</span><input type="number" defaultValue={c.notifyBefore} min={1} id={"sn_"+p} style={{width:55,background:"#F7F9FC",border:"1.5px solid var(--bl)",borderRadius:7,padding:"5px 7px",color:"var(--tx)",fontSize:12,outline:"none",fontFamily:"DM Sans"}}/><span style={{fontSize:11,color:"var(--mu)"}}>h antes</span></div>
           <Btn sz="sm" onClick={()=>{const h=+document.getElementById("sh_"+p).value||c.hours;const n=+document.getElementById("sn_"+p).value||c.notifyBefore;setSlaConf(x=>({...x,[p]:{hours:h,notifyBefore:n}}));setEditSLA(null);}}>✓ Salvar</Btn>
           <Btn sz="sm" v="ghost" onClick={()=>setEditSLA(null)}>✕</Btn>
-        </div>:<div style={{flex:1,display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:12,color:"var(--mu)"}}>Prazo: <strong style={{color:"var(--tx)"}}>{c.hours}h</strong> · Notif. <strong style={{color:"var(--tx)"}}>{c.notifyBefore}h antes</strong></span><Btn sz="sm" v="ghost" onClick={()=>setEditSLA(p)}>✏️</Btn></div>}
+        </div>:<div style={{flex:1,display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:12,color:"var(--mu)"}}>Prazo: <strong>{c.hours}h</strong> · Notif. <strong>{c.notifyBefore}h antes</strong></span><Btn sz="sm" v="ghost" onClick={()=>setEditSLA(p)}>✏️</Btn></div>}
       </div>;})}
     </div>}
     <div style={{background:"#fff",borderRadius:14,padding:16,border:"1px solid var(--b)",marginBottom:14,boxShadow:"var(--shadow)"}}>
@@ -1044,7 +1165,7 @@ function ChecklistPage({checks,setChecks}){
 }
 
 /* ══════════════════════════════════════════════════
-   WHATSAPP LEMBRETES
+   WHATSAPP LEMBRETES — + inadimplentes
 ══════════════════════════════════════════════════ */
 function WhatsAppPage({leads,students,courses,templates,setTemplates}){
   const[mode,setMode]=useState("aluno");
@@ -1053,7 +1174,8 @@ function WhatsAppPage({leads,students,courses,templates,setTemplates}){
   const[tab,setTab]=useState("enviar");const[showTM,setShowTM]=useState(false);const[nTN,setNTN]=useState("");
   const cN=[...new Set(courses.map(c=>c.name))];
   const espera=courses.filter(c=>!fC||c.name===fC).flatMap(c=>(c.waitlist||[]).map(sid=>{const st=students.find(s=>s.id===sid);return st?{...st,courseName:c.name,courseDate:c.date}:null;})).filter(Boolean);
-  const list=mode==="lead"?leads.filter(l=>(!fS||l.stage===fS)&&(!fC||courses.find(c=>c.id===l.courseId)?.name.toLowerCase().includes(fC.toLowerCase()))):mode==="aluno"?students:espera;
+  const inadimplentes=students.filter(isOverdue);
+  const list=mode==="lead"?leads.filter(l=>(!fS||l.stage===fS)&&(!fC||courses.find(c=>c.id===l.courseId)?.name.toLowerCase().includes(fC.toLowerCase()))):mode==="aluno"?students:mode==="espera"?espera:inadimplentes;
   function applyTpl(t){const base=t.text;if(!target){setMsg(base);return;}const courseName=mode==="espera"?target.courseName:(target.courses||[]).map(cid=>courses.find(c=>c.id===cid)?.name||"").filter(Boolean)[0]||"";setMsg(base.replace("{nome}",target.name||"").replace("{curso}",courseName).replace("{data}",target.courseDate||""));}
   function saveTpl(){if(!nTN.trim()||!msg.trim())return;setTemplates(ts=>[...ts,{id:Date.now(),name:nTN.trim(),text:msg}]);setNTN("");setShowTM(false);}
   function openWA(){if(!target){alert("Selecione uma pessoa");return;}if(!msg.trim()){alert("Escreva uma mensagem");return;}const p=(target.phone||"").replace(/\D/g,"");if(p)window.open(`https://wa.me/55${p}?text=${encodeURIComponent(msg)}`,"_blank");else navigator.clipboard.writeText(msg);}
@@ -1075,7 +1197,9 @@ function WhatsAppPage({leads,students,courses,templates,setTemplates}){
     </div>}
     {tab==="enviar"&&<div className="gwa">
       <div>
-        <div style={{display:"flex",gap:6,marginBottom:11,flexWrap:"wrap"}}>{[["aluno","Alunos"],["lead","Leads"],["espera","Lista Espera"]].map(([v,l])=><button key={v} onClick={()=>{setMode(v);setTarget(null);}} style={{background:mode===v?"#EEF4FF":"#fff",border:`1.5px solid ${mode===v?"var(--bl)":"#DDE3EE"}`,color:mode===v?"var(--bl)":"var(--mu)",borderRadius:9,padding:"8px 13px",fontSize:12,fontWeight:600,cursor:"pointer",boxShadow:"var(--shadow)"}}>{l}</button>)}</div>
+        <div style={{display:"flex",gap:6,marginBottom:11,flexWrap:"wrap"}}>
+          {[["aluno","👩‍🎓 Alunos"],["lead","◈ Leads"],["espera","⏳ Espera"],["inadimplentes","⚠ Inadimplentes"]].map(([v,l])=><button key={v} onClick={()=>{setMode(v);setTarget(null);}} style={{background:mode===v?"#EEF4FF":"#fff",border:`1.5px solid ${mode===v?"var(--bl)":"#DDE3EE"}`,color:mode===v?"var(--bl)":"var(--mu)",borderRadius:9,padding:"8px 13px",fontSize:12,fontWeight:600,cursor:"pointer",boxShadow:"var(--shadow)"}}>{l}{v==="inadimplentes"&&inadimplentes.length>0&&<span style={{background:"var(--rd)",color:"#fff",borderRadius:99,padding:"1px 5px",fontSize:9,marginLeft:4}}>{inadimplentes.length}</span>}</button>)}
+        </div>
         <div style={{display:"flex",gap:7,marginBottom:10,flexWrap:"wrap"}}>
           {mode==="lead"&&<select value={fS} onChange={e=>setFS(e.target.value)} style={{background:"#fff",border:"1.5px solid #DDE3EE",borderRadius:9,padding:"7px 11px",color:"var(--mu)",fontSize:11,outline:"none",fontFamily:"DM Sans"}}><option value="">Todas etapas</option>{SCRM.map(s=><option key={s}>{s}</option>)}</select>}
           {(mode==="lead"||mode==="espera")&&<select value={fC} onChange={e=>setFC(e.target.value)} style={{flex:1,background:"#fff",border:"1.5px solid #DDE3EE",borderRadius:9,padding:"7px 11px",color:"var(--mu)",fontSize:11,outline:"none",fontFamily:"DM Sans"}}><option value="">Todos os cursos</option>{cN.map(n=><option key={n}>{n}</option>)}</select>}
@@ -1083,8 +1207,8 @@ function WhatsAppPage({leads,students,courses,templates,setTemplates}){
         <div style={{fontSize:10,color:"var(--mu)",fontWeight:600,letterSpacing:.5,marginBottom:8,textTransform:"uppercase"}}>Toque para selecionar</div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           {list.map((p,i)=>{const sel=target?.id===p.id&&target?.courseName===p.courseName;return <div key={(p.id||i)+(p.courseName||"")} onClick={()=>setTarget(sel?null:p)} style={{background:sel?"#EEF4FF":"#fff",borderRadius:12,padding:"11px 13px",border:`1.5px solid ${sel?"var(--bl)":"#DDE3EE"}`,display:"flex",alignItems:"center",gap:11,cursor:"pointer",transition:"all .15s",boxShadow:"var(--shadow)",animation:`sr .3s ease ${i*.04}s both`}}>
-            <Av letter={p.name[0]} size={34} color={sel?"var(--bl)":mode==="lead"?(SCL[p.stage]||"var(--mu)"):"var(--te)"}/>
-            <div style={{flex:1}}><div style={{fontWeight:sel?700:600,fontSize:12,color:sel?"var(--bl)":"var(--tx)"}}>{p.name}</div><div style={{fontSize:11,color:"var(--mu)"}}>{mode==="lead"?`${courses.find(c=>c.id===p.courseId)?.name||"—"} · ${p.stage}`:mode==="espera"?`⏳ ${p.courseName}`:p.email}</div></div>
+            <Av letter={p.name[0]} size={34} color={sel?"var(--bl)":mode==="inadimplentes"?"var(--rd)":mode==="lead"?(SCL[p.stage]||"var(--mu)"):"var(--te)"}/>
+            <div style={{flex:1}}><div style={{fontWeight:sel?700:600,fontSize:12,color:sel?"var(--bl)":"var(--tx)"}}>{p.name}</div><div style={{fontSize:11,color:"var(--mu)"}}>{mode==="lead"?`${courses.find(c=>c.id===p.courseId)?.name||"—"} · ${p.stage}`:mode==="espera"?`⏳ ${p.courseName}`:mode==="inadimplentes"?`Pendente · R${p.pType==="parcelado"?((p.installments||0)-(p.paidMonths||[]).length)+"x R$"+(+p.instValue||0).toLocaleString():"$"+(+p.totalValue||0).toLocaleString()}`:p.email}</div></div>
             {sel&&<span style={{color:"var(--bl)",fontSize:16,fontWeight:700}}>✓</span>}
           </div>;})}
           {!list.length&&<div style={{textAlign:"center",padding:"18px 0",color:"var(--mu)",fontSize:11}}>Nenhum resultado</div>}
@@ -1116,71 +1240,292 @@ function WhatsAppPage({leads,students,courses,templates,setTemplates}){
 }
 
 /* ══════════════════════════════════════════════════
-   PEDAGÓGICO
+   PEDAGÓGICO — checklist por curso + upload docs + alertas
 ══════════════════════════════════════════════════ */
-function PedagogicoPage({students,courses}){
+function PedagogicoPage({students,setStudents,courses}){
   const[selSt,setSelSt]=useState(null);
-  const[pedItems,setPedItems]=useState(()=>({}))
-  const[newItem,setNewItem]=useState("");
-  const[allItems,setAllItems]=useState(IPED);
-  const[trackedCourses,setTrackedCourses]=useState(()=>courses.reduce((a,c)=>({...a,[c.id]:c.type==="Curso"||c.type==="Estágio"}),{}))
-  const[stuCourseOvr,setStuCourseOvr]=useState({});
+  const[pedItems,setPedItems]=useState({});
+  const[trackedCourses,setTrackedCourses]=useState(()=>courses.reduce((a,c)=>({...a,[c.id]:c.type==="Curso"||c.type==="Estágio"}),{}));
   const[selCourse,setSelCourse]=useState(null);
+
   function toggleItem(stId,item){setPedItems(p=>{const cur=p[stId]||{};return {...p,[stId]:{...cur,[item]:!cur[item]}};})}
-  function pct(stId){const items=pedItems[stId]||{};const done=Object.values(items).filter(Boolean).length;return allItems.length?Math.round((done/allItems.length)*100):0;}
-  const activeStudents=students.filter(s=>(s.courses||[]).some(cid=>{const ov=stuCourseOvr[s.id];return ov?ov[cid]:trackedCourses[cid];}));
+
+  function getChecklist(student){
+    const courseIds=student.courses.filter(cid=>trackedCourses[cid]);
+    const items=new Set();
+    courseIds.forEach(cid=>{const c=courses.find(x=>x.id===cid);(c?.checklist||[]).forEach(it=>items.add(it));});
+    return [...items];
+  }
+
+  function pct(st){
+    const items=getChecklist(st);
+    if(!items.length)return 0;
+    const done=items.filter(it=>(pedItems[st.id]||{})[it]).length;
+    return Math.round((done/items.length)*100);
+  }
+
+  function getCourseAlert(student,courseId){
+    const c=courses.find(x=>x.id===courseId);
+    if(!c||!c.enrollmentDeadline)return null;
+    const enDate=(student.enrollmentDates||{})[courseId];
+    const deadline=new Date(c.enrollmentDeadline);
+    const now=new Date();
+    const daysLeft=Math.round((deadline-now)/86400000);
+    if(daysLeft<0)return{color:"var(--rd)",label:`${Math.abs(daysLeft)}d vencido`};
+    if(daysLeft<=7)return{color:"var(--am)",label:`${daysLeft}d restantes`};
+    if(daysLeft<=30)return{color:"var(--bl)",label:`${daysLeft}d restantes`};
+    return{color:"var(--gn)",label:`${daysLeft}d restantes`};
+  }
+
+  async function uploadPedDoc(stId,courseId,file){
+    const f=await readFile(file);
+    setStudents(ss=>ss.map(s=>{if(s.id!==stId)return s;const docs={...(s.pedDocs||{})};docs[courseId]=[...(docs[courseId]||[]),f];return {...s,pedDocs:docs};}));
+  }
+
+  function removePedDoc(stId,courseId,idx){
+    setStudents(ss=>ss.map(s=>{if(s.id!==stId)return s;const docs={...(s.pedDocs||{})};docs[courseId]=(docs[courseId]||[]).filter((_,i)=>i!==idx);return {...s,pedDocs:docs};}));
+  }
+
+  const activeStudents=students.filter(s=>(s.courses||[]).some(cid=>trackedCourses[cid]));
   const displayStudents=selCourse?activeStudents.filter(s=>s.courses.includes(selCourse)):activeStudents;
+
   return <div style={{animation:"up .4s ease"}}>
-    <div style={{marginBottom:16}}><h1 style={{fontFamily:"Playfair Display",fontSize:24,fontWeight:700}}>Painel Pedagógico</h1><p style={{color:"var(--mu)",fontSize:11,marginTop:2}}>Acompanhamento por aluno · estilo faculdade</p></div>
+    <div style={{marginBottom:16}}><h1 style={{fontFamily:"Playfair Display",fontSize:24,fontWeight:700}}>Painel Pedagógico</h1><p style={{color:"var(--mu)",fontSize:11,marginTop:2}}>Acompanhamento por aluno · checklist por curso · upload de documentos</p></div>
     <div style={{background:"#fff",borderRadius:14,padding:15,border:"1px solid var(--b)",marginBottom:13,boxShadow:"var(--shadow)"}}>
       <div style={{fontFamily:"Playfair Display",fontSize:14,fontWeight:600,marginBottom:9}}>Cursos com acompanhamento</div>
       <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
         {courses.map(c=>{const on=!!trackedCourses[c.id];return <button key={c.id} onClick={()=>setTrackedCourses(t=>({...t,[c.id]:!t[c.id]}))} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 11px",borderRadius:9,border:`1.5px solid ${on?"var(--bl)":"#DDE3EE"}`,background:on?"#EEF4FF":"#F7F9FC",cursor:"pointer",transition:"all .15s"}}>
           <div style={{width:14,height:14,borderRadius:3,border:`2px solid ${on?"var(--bl)":"#DDE3EE"}`,background:on?"var(--bl)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,color:"#fff",fontWeight:700}}>{on?"✓":""}</div>
           <span style={{fontSize:11,color:on?"var(--bl)":"var(--mu)",fontWeight:on?700:400}}>{c.name.split("–")[0].trim()}</span>
+          {c.checklist?.length>0&&<span style={{fontSize:9,color:"var(--pu)",fontWeight:600}}>📋{c.checklist.length}</span>}
         </button>;})}
       </div>
-    </div>
-    <div style={{background:"#fff",borderRadius:14,padding:15,border:"1px solid var(--b)",marginBottom:13,boxShadow:"var(--shadow)"}}>
-      <div style={{fontFamily:"Playfair Display",fontSize:14,fontWeight:600,marginBottom:9}}>Itens de Acompanhamento</div>
-      <div style={{display:"flex",gap:8,marginBottom:10}}><input value={newItem} onChange={e=>setNewItem(e.target.value)} onKeyDown={e=>e.key==="Enter"&&newItem.trim()&&(setAllItems(a=>[...a,newItem.trim()]),setNewItem(""))} placeholder="+ Novo item..." style={{flex:1,background:"#F7F9FC",border:"1.5px solid #DDE3EE",borderRadius:9,padding:"7px 12px",color:"var(--tx)",fontSize:12,outline:"none",fontFamily:"DM Sans"}}/><Btn sz="sm" onClick={()=>{if(newItem.trim()){setAllItems(a=>[...a,newItem.trim()]);setNewItem("");}}}>+</Btn></div>
-      <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{allItems.map(it=><div key={it} style={{display:"flex",alignItems:"center",gap:5,background:"#EEF4FF",borderRadius:99,padding:"4px 10px",border:"1px solid #C7D7F5"}}><span style={{fontSize:11,color:"var(--bl)",fontWeight:600}}>{it}</span><button onClick={()=>setAllItems(a=>a.filter(x=>x!==it))} style={{background:"transparent",border:"none",color:"var(--mu2)",cursor:"pointer",fontSize:13,lineHeight:1}}>×</button></div>)}</div>
     </div>
     <div style={{display:"flex",gap:7,marginBottom:13,flexWrap:"wrap"}}>
       <button onClick={()=>setSelCourse(null)} style={{background:!selCourse?"#EEF4FF":"#fff",border:`1.5px solid ${!selCourse?"var(--bl)":"#DDE3EE"}`,color:!selCourse?"var(--bl)":"var(--mu)",borderRadius:99,padding:"5px 13px",fontSize:11,fontWeight:600,cursor:"pointer"}}>Todos</button>
       {courses.filter(c=>trackedCourses[c.id]).map(c=><button key={c.id} onClick={()=>setSelCourse(c.id)} style={{background:selCourse===c.id?"#EEF4FF":"#fff",border:`1.5px solid ${selCourse===c.id?"var(--bl)":"#DDE3EE"}`,color:selCourse===c.id?"var(--bl)":"var(--mu)",borderRadius:99,padding:"5px 13px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{c.name.split("–")[0].trim()}</button>)}
     </div>
     <div style={{display:"flex",flexDirection:"column",gap:9}}>
-      {displayStudents.map((s,i)=>{const ex=selSt===s.id;const p=pct(s.id);return <div key={s.id} style={{background:"#fff",borderRadius:14,border:`1.5px solid ${ex?"var(--bl)":"#E5EAF3"}`,overflow:"hidden",animation:`sr .3s ease ${i*.04}s both`,boxShadow:"var(--shadow)"}}>
-        <div onClick={()=>setSelSt(x=>x===s.id?null:s.id)} style={{display:"flex",alignItems:"center",gap:11,padding:"12px 15px",cursor:"pointer"}}>
-          <Av letter={s.name[0]} size={38} color="var(--pu)"/>
-          <div style={{flex:1}}>
-            <div style={{fontWeight:700,fontSize:13,color:"var(--tx)"}}>{s.name}</div>
-            <div style={{fontSize:11,color:"var(--mu)",marginTop:2}}>{(s.courses||[]).filter(cid=>trackedCourses[cid]).map(cid=>courses.find(c=>c.id===cid)?.name.split("–")[0].trim()).filter(Boolean).join(" · ")||"Sem cursos rastreados"}</div>
-            <div style={{background:"#F0F4FA",borderRadius:99,height:4,marginTop:5,overflow:"hidden"}}><div style={{width:`${p}%`,height:"100%",background:"linear-gradient(90deg,var(--pu),var(--bl))",borderRadius:99,transition:"width .8s ease"}}/></div>
+      {displayStudents.map((s,i)=>{
+        const ex=selSt===s.id;const p=pct(s);
+        const checklist=getChecklist(s);
+        const trackedCids=s.courses.filter(cid=>trackedCourses[cid]);
+        return <div key={s.id} style={{background:"#fff",borderRadius:14,border:`1.5px solid ${ex?"var(--bl)":"#E5EAF3"}`,overflow:"hidden",animation:`sr .3s ease ${i*.04}s both`,boxShadow:"var(--shadow)"}}>
+          <div onClick={()=>setSelSt(x=>x===s.id?null:s.id)} style={{display:"flex",alignItems:"center",gap:11,padding:"12px 15px",cursor:"pointer"}}>
+            <Av letter={s.name[0]} size={38} color="var(--pu)"/>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:700,fontSize:13,color:"var(--tx)"}}>{s.name}</div>
+              <div style={{fontSize:11,color:"var(--mu)",marginTop:2}}>
+                {trackedCids.map(cid=>courses.find(c=>c.id===cid)?.name.split("–")[0].trim()).filter(Boolean).join(" · ")||"Sem cursos rastreados"}
+              </div>
+              <div style={{background:"#F0F4FA",borderRadius:99,height:4,marginTop:5,overflow:"hidden"}}><div style={{width:`${p}%`,height:"100%",background:"linear-gradient(90deg,var(--pu),var(--bl))",borderRadius:99,transition:"width .8s ease"}}/></div>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
+              <div style={{fontFamily:"Playfair Display",fontSize:20,fontWeight:700,color:p>=80?"var(--gn)":p>=50?"var(--am)":"var(--rd)"}}>{checklist.length?p+"%":"—"}</div>
+              {trackedCids.map(cid=>{const alert=getCourseAlert(s,cid);if(!alert)return null;return <Chip key={cid} color={alert.color} sm>{alert.label}</Chip>;})}
+            </div>
+            <span style={{color:"var(--mu)",fontSize:11,marginLeft:3}}>{ex?"▲":"▼"}</span>
           </div>
-          <div style={{textAlign:"right"}}><div style={{fontFamily:"Playfair Display",fontSize:20,fontWeight:700,color:p>=80?"var(--gn)":p>=50?"var(--am)":"var(--rd)"}}>{p}%</div><div style={{fontSize:10,color:"var(--mu)"}}>{pedItems[s.id]?Object.values(pedItems[s.id]).filter(Boolean).length:0}/{allItems.length}</div></div>
-          <span style={{color:"var(--mu)",fontSize:11,marginLeft:3}}>{ex?"▲":"▼"}</span>
-        </div>
-        {ex&&<div style={{borderTop:"1.5px solid #E5EAF3",padding:"13px 15px",background:"#F7F9FC"}}>
-          <div style={{fontSize:10,color:"var(--bl)",fontWeight:600,letterSpacing:.5,marginBottom:8,textTransform:"uppercase"}}>Cursos — ativar acompanhamento</div>
-          <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:13}}>
-            {(s.courses||[]).map(cid=>{const c=courses.find(x=>x.id===cid);if(!c)return null;const on=stuCourseOvr[s.id]?.[cid]!==undefined?stuCourseOvr[s.id][cid]:trackedCourses[cid];return <button key={cid} onClick={()=>setStuCourseOvr(p=>({...p,[s.id]:{...(p[s.id]||{}),[cid]:!on}}))} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:9,border:`1.5px solid ${on?"var(--pu)":"#DDE3EE"}`,background:on?"#F5F1FE":"#fff",cursor:"pointer",transition:"all .15s"}}>
-              <div style={{width:14,height:14,borderRadius:3,border:`2px solid ${on?"var(--pu)":"#DDE3EE"}`,background:on?"var(--pu)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,color:"#fff",fontWeight:700}}>{on?"✓":""}</div>
-              <span style={{fontSize:11,color:on?"var(--pu)":"var(--mu)",fontWeight:on?700:400}}>{c.name.split("–")[0].trim()}</span>
-            </button>;})}
-          </div>
-          <div style={{fontSize:10,color:"var(--pu)",fontWeight:600,letterSpacing:.5,marginBottom:9,textTransform:"uppercase"}}>Checklist</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
-            {allItems.map(item=>{const done=(pedItems[s.id]||{})[item]||false;return <div key={item} onClick={()=>toggleItem(s.id,item)} style={{display:"flex",alignItems:"center",gap:9,padding:"9px 12px",borderRadius:10,background:done?"#F0FDF4":"#F7F9FC",border:`1.5px solid ${done?"#BBF7D0":"#DDE3EE"}`,cursor:"pointer",transition:"all .15s"}}>
-              <div style={{width:20,height:20,borderRadius:5,border:`2px solid ${done?"var(--gn)":"#DDE3EE"}`,background:done?"var(--gn)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:11,color:"#fff",fontWeight:700}}>{done?"✓":""}</div>
-              <span style={{fontSize:12,fontWeight:done?600:400,color:done?"var(--gn)":"var(--mu)"}}>{item}</span>
-            </div>;})}
-          </div>
-        </div>}
-      </div>;})}
+          {ex&&<div style={{borderTop:"1.5px solid #E5EAF3",padding:"13px 15px",background:"#F7F9FC"}}>
+            {trackedCids.map(cid=>{
+              const c=courses.find(x=>x.id===cid);if(!c)return null;
+              const alert=getCourseAlert(s,cid);
+              const courseChecklist=c.checklist||[];
+              const docs=(s.pedDocs||{})[cid]||[];
+              const enrollDate=(s.enrollmentDates||{})[cid];
+              return <div key={cid} style={{marginBottom:16,background:"#fff",borderRadius:11,padding:12,border:"1px solid var(--b)"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}>
+                  <Chip color={KCL[c.type]||"var(--bl)"}>{c.type}</Chip>
+                  <span style={{fontWeight:700,fontSize:12,color:"var(--tx)",flex:1}}>{c.name}</span>
+                  {enrollDate&&<span style={{fontSize:10,color:"var(--mu2)"}}>desde {enrollDate}</span>}
+                  {alert&&<Chip color={alert.color} sm>⏰ {alert.label}</Chip>}
+                </div>
+                {courseChecklist.length>0&&<>
+                  <div style={{fontSize:10,color:"var(--pu)",fontWeight:600,textTransform:"uppercase",letterSpacing:.5,marginBottom:7}}>Checklist</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:11}}>
+                    {courseChecklist.map(item=>{const done=(pedItems[s.id]||{})[item]||false;return <div key={item} onClick={()=>toggleItem(s.id,item)} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:9,background:done?"#F0FDF4":"#F7F9FC",border:`1.5px solid ${done?"#BBF7D0":"#DDE3EE"}`,cursor:"pointer",transition:"all .15s"}}>
+                      <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${done?"var(--gn)":"#DDE3EE"}`,background:done?"var(--gn)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:10,color:"#fff",fontWeight:700}}>{done?"✓":""}</div>
+                      <span style={{fontSize:11,fontWeight:done?600:400,color:done?"var(--gn)":"var(--mu)"}}>{item}</span>
+                    </div>;})}
+                  </div>
+                </>}
+                <div style={{fontSize:10,color:"var(--bl)",fontWeight:600,textTransform:"uppercase",letterSpacing:.5,marginBottom:7}}>Documentos / Certificado</div>
+                <label style={{display:"inline-flex",alignItems:"center",gap:6,background:"#EEF4FF",border:"1.5px solid #C7D7F5",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontSize:11,color:"var(--bl)",fontWeight:600,marginBottom:8}}>
+                  📎 Subir documento
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{display:"none"}} onChange={async e=>{if(e.target.files[0]){await uploadPedDoc(s.id,cid,e.target.files[0]);e.target.value="";}}}/>
+                </label>
+                {docs.map((d,di)=><div key={di} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:8,background:"#F7F9FC",border:"1px solid var(--b)",marginBottom:5}}>
+                  <span>📄</span>
+                  <span style={{flex:1,fontSize:11,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</span>
+                  <a href={d.data} download={d.name} style={{fontSize:10,color:"var(--gn)",fontWeight:700,textDecoration:"none"}}>↓</a>
+                  <button onClick={()=>removePedDoc(s.id,cid,di)} style={{background:"transparent",border:"none",color:"var(--rd)",cursor:"pointer",fontSize:13}}>×</button>
+                </div>)}
+                {!docs.length&&<div style={{fontSize:10,color:"var(--mu2)"}}>Nenhum documento ainda</div>}
+              </div>;
+            })}
+          </div>}
+        </div>;})}
       {!displayStudents.length&&<div style={{textAlign:"center",padding:"28px 0",color:"var(--mu)",fontSize:12}}>Nenhum aluno com cursos rastreados</div>}
     </div>
+  </div>;
+}
+
+/* ══════════════════════════════════════════════════
+   SOCIAL MEDIA — calendário + sugestões IA
+══════════════════════════════════════════════════ */
+function SocialPage(){
+  const[posts,setPosts]=useState(SEED_SOCIAL);
+  const[tab,setTab]=useState("calendario");
+  const[calM,setCalM]=useState(new Date());
+  const[showForm,setShowForm]=useState(false);
+  const[editing,setEditing]=useState(null);
+  const[aiPrompt,setAiPrompt]=useState("");
+  const[aiLoading,setAiLoading]=useState(false);
+  const[aiResult,setAiResult]=useState(null);
+  const eP={date:"",time:"12:00",category:SOCIAL_CATS[0],caption:"",hashtags:"",imageUrl:"",status:"Programado"};
+  const[form,setForm]=useState(eP);
+  const fp=v=>setForm(p=>({...p,...v}));
+  const cy=calM.getFullYear(),cm=calM.getMonth();
+  const fd=new Date(cy,cm,1).getDay(),dm=new Date(cy,cm+1,0).getDate();
+  function postsOnDay(d){const ds=`${cy}-${String(cm+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;return posts.filter(p=>p.date===ds);}
+  function savePost(){
+    if(!form.date||!form.caption)return;
+    if(editing)setPosts(ps=>ps.map(p=>p.id===editing.id?{...form,id:p.id}:p));
+    else setPosts(ps=>[...ps,{...form,id:Date.now()}]);
+    setShowForm(false);setEditing(null);setForm(eP);
+  }
+  function openInstagram(post){
+    const text=encodeURIComponent(`${post.caption}\n\n${post.hashtags}`);
+    window.open("https://www.instagram.com/","_blank");
+    setTimeout(()=>navigator.clipboard.writeText(`${post.caption}\n\n${post.hashtags}`),500);
+  }
+  const IA_TEMPLATES={
+    "Reflexologia":["🌿 Você sabia que a reflexologia pode aliviar tensões acumuladas no dia a dia? Nossos alunos aprendem técnicas que transformam vidas. Venha conhecer o Método IOR!\n\n#reflexologia #bemestar #saude #metodpIOR","✨ A reflexologia podal é uma arte que conecta corpo e mente. Cada ponto nos pés reflete um órgão, um sistema, uma emoção. Aprenda com quem é referência!\n\n#reflexologiapodal #terapiasholisticas #saúde"],
+    "Curso/Workshop":["🎓 Vagas abertas para nosso próximo curso de Reflexologia Podal! Aprenda o Método IOR com instrutoras especializadas. Garanta sua vaga!\n\n#cursoreflexologia #metodpIOR #cursoholistico #terapia","📚 Quer transformar sua prática terapêutica? Nosso workshop intensivo de Reflexologia Facial está chegando. Inscrições abertas!\n\n#workshop #reflexologiafacial #terapeutaholistica"],
+    "Bem-estar":["💆 Cuidar de si é um ato de amor. A reflexologia ajuda a equilibrar energia, reduzir estresse e promover bem-estar completo. Saiba mais!\n\n#autocuidado #bemestar #reflexologia #equilibrio","🌸 Quando foi a última vez que você priorizou seu bem-estar? A reflexologia é um caminho gentil para reconectar corpo e mente.\n\n#bemestar #saúde #reflexologia #cuidado"],
+    "Depoimento":["⭐ \"A reflexologia mudou minha relação com o meu corpo. Aprendi a ouvir os sinais e cuidar com mais consciência.\" – Aluna IOR\n\n#depoimento #transformacao #reflexologia #metodpIOR","🙏 \"Depois do curso, minha prática ficou muito mais segura e eficiente. O Método IOR é incrível!\" – Terapeuta formada pelo IOR\n\n#resultado #reflexologia #terapeutaholistica"],
+    "Dica":["💡 Dica de reflexologia: pressione suavemente o centro da planta do pé por 30 segundos. Esse ponto estimula energia e vitalidade!\n\n#dica #reflexologia #autocuidado #saude","🌿 Sabia que massagear os dedos dos pés pode ajudar a aliviar dores de cabeça? A reflexologia tem respostas para o corpo inteiro!\n\n#dica #reflexologiapodal #saude"],
+    "Evento":["📅 Evento especial chegando! Marque na agenda e não perca essa oportunidade de aprendizado e crescimento profissional.\n\n#evento #reflexologia #crescimentoprofissional #metodpIOR","🗓️ Nossa próxima turma está se formando! Se você sonha em trabalhar com terapias holísticas, esse é o seu momento.\n\n#turmanova #reflexologia #terapeutaholistica"],
+    "Bastidores":["📸 Bastidores do nosso último curso! Ver nossos alunos em ação é sempre gratificante. A dedicação de cada um nos inspira.\n\n#bastidores #reflexologia #alunos #metodpIOR","🎯 Nos preparando para mais uma turma incrível! Os materiais estão prontos, as instrutoras animadas. Tudo para a melhor experiência de aprendizado!\n\n#bastidores #preparacao #reflexologia"],
+  };
+
+  async function gerarSugestaoIA(){
+    if(!aiPrompt.trim())return;
+    setAiLoading(true);setAiResult(null);
+    await new Promise(r=>setTimeout(r,1200));
+    const cat=SOCIAL_CATS.find(c=>aiPrompt.toLowerCase().includes(c.toLowerCase()))||SOCIAL_CATS[Math.floor(Math.random()*SOCIAL_CATS.length)];
+    const options=IA_TEMPLATES[cat]||IA_TEMPLATES["Reflexologia"];
+    const picked=options[Math.floor(Math.random()*options.length)];
+    const [caption,...rest]=picked.split("\n\n");
+    setAiResult({caption:caption.trim(),hashtags:rest.join("\n\n").trim(),category:cat});
+    setAiLoading(false);
+  }
+
+  const CAT_COLORS={"Reflexologia":"var(--te)","Bem-estar":"var(--gn)","Curso/Workshop":"var(--bl)","Depoimento":"var(--pu)","Dica":"var(--am)","Evento":"var(--rd)","Bastidores":"#9AAAC0"};
+  const STATUS_COLORS={"Programado":"var(--bl)","Publicado":"var(--gn)","Rascunho":"var(--am)"};
+
+  return <div style={{animation:"up .4s ease"}}>
+    <div style={{marginBottom:16}}><h1 style={{fontFamily:"Playfair Display",fontSize:24,fontWeight:700}}>Social Media</h1><p style={{color:"var(--mu)",fontSize:11,marginTop:2}}>Planeje, crie e programe suas postagens · sugestões com IA</p></div>
+    <div style={{display:"flex",gap:0,borderBottom:"2px solid var(--b)",marginBottom:16}}>
+      {[["calendario","📅 Calendário"],["posts","☰ Posts"],["ia","✦ IA Sugestões"]].map(([id,lbl])=><button key={id} onClick={()=>setTab(id)} style={{padding:"8px 15px",border:"none",background:"transparent",fontFamily:"DM Sans",fontSize:12,fontWeight:600,cursor:"pointer",color:tab===id?"var(--bl)":"var(--mu)",borderBottom:`2px solid ${tab===id?"var(--bl)":"transparent"}`,marginBottom:-2}}>{lbl}</button>)}
+      <div style={{flex:1}}/>
+      <Btn sz="sm" onClick={()=>{setForm(eP);setEditing(null);setShowForm(true);}}>+ Nova Postagem</Btn>
+    </div>
+
+    {tab==="calendario"&&<>
+      <div style={{background:"#fff",borderRadius:16,border:"1px solid var(--b)",overflow:"hidden",boxShadow:"var(--shadow)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"13px 18px",borderBottom:"1px solid var(--b)"}}>
+          <button onClick={()=>setCalM(new Date(cy,cm-1,1))} style={{background:"#F7F9FC",border:"1.5px solid #DDE3EE",borderRadius:7,width:28,height:28,color:"var(--tx)",cursor:"pointer",fontSize:14}}>‹</button>
+          <div style={{fontFamily:"Playfair Display",fontSize:18,fontWeight:700}}>{MNS[cm]} {cy}</div>
+          <button onClick={()=>setCalM(new Date(cy,cm+1,1))} style={{background:"#F7F9FC",border:"1.5px solid #DDE3EE",borderRadius:7,width:28,height:28,color:"var(--tx)",cursor:"pointer",fontSize:14}}>›</button>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",borderBottom:"1px solid var(--b)"}}>{["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"].map((d,i)=><div key={i} style={{padding:"7px 0",textAlign:"center",fontSize:10,color:"var(--mu)",fontWeight:600}}>{d}</div>)}</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)"}}>
+          {Array.from({length:fd}).map((_,i)=><div key={"e"+i} style={{borderRight:"1px solid var(--b)",borderBottom:"1px solid var(--b)",minHeight:80}}/>)}
+          {Array.from({length:dm}).map((_,i)=>{const day=i+1,dps=postsOnDay(day);const isToday=new Date().getDate()===day&&new Date().getMonth()===cm&&new Date().getFullYear()===cy;return <div key={day} style={{borderRight:"1px solid var(--b)",borderBottom:"1px solid var(--b)",minHeight:80,padding:5}}>
+            <div style={{fontSize:10,fontWeight:600,color:isToday?"#fff":"var(--mu)",marginBottom:2,background:isToday?"var(--bl)":"transparent",width:18,height:18,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center"}}>{day}</div>
+            {dps.map(p=><div key={p.id} onClick={()=>{setForm({...p});setEditing(p);setShowForm(true);}} style={{background:`${CAT_COLORS[p.category]||"#9AAAC0"}18`,borderLeft:`2px solid ${CAT_COLORS[p.category]||"#9AAAC0"}`,borderRadius:3,padding:"2px 5px",fontSize:8,fontWeight:600,color:CAT_COLORS[p.category]||"#9AAAC0",marginBottom:1,cursor:"pointer",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{p.time} {p.caption?.slice(0,20)}</div>)}
+            <div onClick={()=>{const ds=`${cy}-${String(cm+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;setForm({...eP,date:ds});setEditing(null);setShowForm(true);}} style={{textAlign:"center",fontSize:9,color:"var(--mu2)",cursor:"pointer",marginTop:2}}>+</div>
+          </div>;})}
+        </div>
+      </div>
+      <div style={{display:"flex",gap:9,marginTop:11,flexWrap:"wrap"}}>{Object.entries(CAT_COLORS).map(([t,c])=><div key={t} style={{display:"flex",alignItems:"center",gap:4}}><Dot color={c} size={7}/><span style={{fontSize:10,color:"var(--mu)"}}>{t}</span></div>)}</div>
+    </>}
+
+    {tab==="posts"&&<div style={{display:"flex",flexDirection:"column",gap:9}}>
+      {posts.length===0&&<div style={{textAlign:"center",padding:"28px 0",color:"var(--mu)",fontSize:12}}>Nenhuma postagem. Crie sua primeira!</div>}
+      {[...posts].sort((a,b)=>a.date.localeCompare(b.date)).map((p,i)=><div key={p.id} style={{background:"#fff",borderRadius:14,padding:"14px 16px",border:"1px solid var(--b)",boxShadow:"var(--shadow)",animation:`sr .3s ease ${i*.04}s both`}}>
+        <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
+          {p.imageUrl&&<img src={p.imageUrl} alt="" style={{width:64,height:64,borderRadius:8,objectFit:"cover",flexShrink:0}} onError={e=>e.target.style.display="none"}/>}
+          <div style={{flex:1}}>
+            <div style={{display:"flex",gap:6,marginBottom:6,flexWrap:"wrap"}}>
+              <Chip color={CAT_COLORS[p.category]||"var(--mu)"}>{p.category}</Chip>
+              <Chip color={STATUS_COLORS[p.status]||"var(--mu)"} sm>{p.status}</Chip>
+              <span style={{fontSize:11,color:"var(--mu)"}}>📅 {p.date} {p.time}</span>
+            </div>
+            <div style={{fontSize:13,color:"var(--tx)",lineHeight:1.5,marginBottom:6}}>{p.caption}</div>
+            {p.hashtags&&<div style={{fontSize:11,color:"var(--bl)",fontWeight:600}}>{p.hashtags.slice(0,80)}{p.hashtags.length>80?"…":""}</div>}
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            <Btn sz="sm" v="ghost" onClick={()=>{setForm({...p});setEditing(p);setShowForm(true);}}>✏️</Btn>
+            <button onClick={()=>openInstagram(p)} style={{background:"linear-gradient(135deg,#E1306C,#833AB4,#405DE6)",border:"none",borderRadius:7,padding:"6px 10px",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans"}}>📸 IG</button>
+            <Btn sz="sm" v="danger" onClick={()=>setPosts(ps=>ps.filter(x=>x.id!==p.id))}>×</Btn>
+          </div>
+        </div>
+      </div>)}
+    </div>}
+
+    {tab==="ia"&&<div>
+      <div style={{background:"#fff",borderRadius:16,padding:20,border:"1px solid var(--b)",boxShadow:"var(--shadow)",marginBottom:14}}>
+        <div style={{fontFamily:"Playfair Display",fontSize:16,fontWeight:600,marginBottom:4}}>Sugestão de Postagem com IA</div>
+        <div style={{fontSize:11,color:"var(--mu)",marginBottom:14}}>Descreva o tema ou ocasião e receba sugestões de legenda e hashtags</div>
+        <div style={{display:"flex",gap:9}}>
+          <input value={aiPrompt} onChange={e=>setAiPrompt(e.target.value)} onKeyDown={e=>e.key==="Enter"&&gerarSugestaoIA()} placeholder="Ex: workshop de reflexologia facial, depoimento de aluna, dica de bem-estar..." style={{flex:1,background:"#F7F9FC",border:"1.5px solid #DDE3EE",borderRadius:10,padding:"10px 14px",color:"var(--tx)",fontSize:13,outline:"none",fontFamily:"DM Sans"}}/>
+          <Btn onClick={gerarSugestaoIA} disabled={!aiPrompt.trim()||aiLoading}>{aiLoading?"Gerando...":"✦ Gerar"}</Btn>
+        </div>
+        <div style={{display:"flex",gap:7,marginTop:11,flexWrap:"wrap"}}>
+          {SOCIAL_CATS.map(c=><button key={c} onClick={()=>setAiPrompt(c)} style={{background:"#F7F9FC",border:"1.5px solid #DDE3EE",borderRadius:99,padding:"4px 11px",fontSize:11,color:"var(--mu)",cursor:"pointer",fontFamily:"DM Sans"}}>{c}</button>)}
+        </div>
+      </div>
+      {aiLoading&&<div style={{textAlign:"center",padding:"32px 0",color:"var(--pu)",fontSize:13,fontWeight:600}}>✦ Gerando sugestão…</div>}
+      {aiResult&&<div style={{background:"linear-gradient(135deg,#F5F1FE,#EEF4FF)",borderRadius:16,padding:20,border:"1.5px solid #DDD0F7",boxShadow:"var(--shadow)"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div style={{fontFamily:"Playfair Display",fontSize:15,fontWeight:600,color:"var(--pu)"}}>✦ Sugestão Gerada</div>
+          <Chip color={CAT_COLORS[aiResult.category]||"var(--mu)"}>{aiResult.category}</Chip>
+        </div>
+        <div style={{background:"#fff",borderRadius:11,padding:14,marginBottom:11,border:"1px solid #DDD0F7"}}>
+          <div style={{fontSize:10,color:"var(--pu)",fontWeight:600,textTransform:"uppercase",letterSpacing:.5,marginBottom:6}}>Legenda</div>
+          <div style={{fontSize:13,color:"var(--tx)",lineHeight:1.7,whiteSpace:"pre-wrap"}}>{aiResult.caption}</div>
+        </div>
+        {aiResult.hashtags&&<div style={{background:"#fff",borderRadius:11,padding:14,marginBottom:14,border:"1px solid #DDD0F7"}}>
+          <div style={{fontSize:10,color:"var(--pu)",fontWeight:600,textTransform:"uppercase",letterSpacing:.5,marginBottom:6}}>Hashtags</div>
+          <div style={{fontSize:12,color:"var(--bl)",fontWeight:600,lineHeight:1.8}}>{aiResult.hashtags}</div>
+        </div>}
+        <div style={{display:"flex",gap:9}}>
+          <Btn v="purple" style={{flex:1}} onClick={()=>{setForm({...eP,caption:aiResult.caption,hashtags:aiResult.hashtags,category:aiResult.category});setEditing(null);setShowForm(true);setTab("calendario");}}>📅 Agendar postagem</Btn>
+          <Btn v="ghost" onClick={()=>{navigator.clipboard.writeText(aiResult.caption+"\n\n"+aiResult.hashtags);}}>📋 Copiar</Btn>
+          <Btn v="ghost" onClick={gerarSugestaoIA}>🔄 Nova</Btn>
+        </div>
+      </div>}
+    </div>}
+
+    {showForm&&<Modal title={editing?"Editar Postagem":"Nova Postagem"} onClose={()=>{setShowForm(false);setEditing(null);}} wide>
+      <div className="g2">
+        <Inp label="Data *" value={form.date} onChange={e=>fp({date:e.target.value})} type="date"/>
+        <Inp label="Horário" value={form.time} onChange={e=>fp({time:e.target.value})} type="time"/>
+      </div>
+      <Sel label="Categoria" value={form.category} onChange={e=>fp({category:e.target.value})} options={SOCIAL_CATS}/>
+      <Lbl>Status</Lbl>
+      <div style={{display:"flex",gap:7,marginBottom:13}}>{["Rascunho","Programado","Publicado"].map(s=><button key={s} onClick={()=>fp({status:s})} style={{flex:1,background:form.status===s?`${STATUS_COLORS[s]}15`:"#F7F9FC",border:`1.5px solid ${form.status===s?STATUS_COLORS[s]:"#DDE3EE"}`,color:form.status===s?STATUS_COLORS[s]:"var(--mu)",borderRadius:9,padding:"7px 0",fontSize:12,fontWeight:600,cursor:"pointer"}}>{s}</button>)}</div>
+      <Inp label="Legenda *" value={form.caption} onChange={e=>fp({caption:e.target.value})} rows={4} placeholder="Texto da postagem..."/>
+      <Inp label="Hashtags" value={form.hashtags} onChange={e=>fp({hashtags:e.target.value})} rows={2} placeholder="#reflexologia #bemestar..."/>
+      <Inp label="URL da Imagem (opcional)" value={form.imageUrl} onChange={e=>fp({imageUrl:e.target.value})} placeholder="https://..."/>
+      {form.imageUrl&&<img src={form.imageUrl} alt="preview" style={{width:"100%",maxHeight:180,objectFit:"cover",borderRadius:10,marginBottom:13}} onError={e=>e.target.style.display="none"}/>}
+      <div style={{display:"flex",gap:9,marginBottom:13}}>
+        {form.caption&&<button onClick={()=>window.open("https://www.instagram.com/","_blank")} style={{flex:1,background:"linear-gradient(135deg,#E1306C,#833AB4,#405DE6)",border:"none",borderRadius:9,padding:"10px 0",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans"}}>📸 Abrir Instagram</button>}
+      </div>
+      <div style={{display:"flex",gap:8}}><Btn style={{flex:1}} onClick={savePost}>{editing?"Salvar":"Programar"}</Btn>{editing&&<Btn v="danger" onClick={()=>{setPosts(ps=>ps.filter(p=>p.id!==editing.id));setShowForm(false);setEditing(null);}}>Excluir</Btn>}</div>
+    </Modal>}
   </div>;
 }
 
@@ -1206,7 +1551,7 @@ function PermissoesPage(){
           <Btn sz="sm" onClick={()=>saveRoleName(r)}>✓</Btn><Btn sz="sm" v="ghost" onClick={()=>setEditRole(null)}>✕</Btn>
         </div>:<div style={{display:"flex",alignItems:"center",gap:4}}>
           <button onClick={()=>setSelRole(r)} style={{background:selRole===r?"#EEF4FF":"#fff",border:`1.5px solid ${selRole===r?"var(--bl)":"#DDE3EE"}`,color:selRole===r?"var(--bl)":"var(--mu)",borderRadius:9,padding:"8px 14px",fontSize:13,fontWeight:600,cursor:"pointer",boxShadow:"var(--shadow)"}}>{roleNames[r]}</button>
-          <button onClick={()=>{setEditRole(r);setEditRoleVal(roleNames[r]);}} style={{background:"transparent",border:"none",color:"var(--mu2)",cursor:"pointer",fontSize:13,padding:"2px 4px"}} title="Renomear">✏️</button>
+          <button onClick={()=>{setEditRole(r);setEditRoleVal(roleNames[r]);}} style={{background:"transparent",border:"none",color:"var(--mu2)",cursor:"pointer",fontSize:13,padding:"2px 4px"}}>✏️</button>
         </div>}
       </div>;})}
     </div>
@@ -1267,6 +1612,7 @@ const NAV=[
   {id:"check",    icon:"✓", lbl:"Checklist"},
   {id:"wa",       icon:"◎", lbl:"WA Lembretes"},
   {id:"ped",      icon:"🎓",lbl:"Pedagógico"},
+  {id:"social",   icon:"📸",lbl:"Social Media"},
   {id:"perms",    icon:"🔐",lbl:"Permissões"},
 ];
 const BOT=[{id:"dash",icon:"⬡",lbl:"Início"},{id:"crm",icon:"◈",lbl:"CRM"},{id:"cursos",icon:"❋",lbl:"Cursos"},{id:"fin",icon:"◆",lbl:"Financ."},{id:"__m__",icon:"☰",lbl:"Mais"}];
@@ -1275,12 +1621,12 @@ function SDDesk({active,setActive}){
   const[col,setCol]=useState(false);
   return <div className={`sd ${col?"c":"e"}`}>
     <div style={{display:"flex",alignItems:"center",justifyContent:col?"center":"space-between",marginBottom:26}}>
-      {!col&&<div><div style={{fontFamily:"Playfair Display",fontSize:10,color:"var(--mu)",letterSpacing:2,textTransform:"uppercase"}}>Instituto de</div><div style={{fontFamily:"Playfair Display",fontSize:18,fontWeight:700,color:"var(--bl)"}}>Reflexologia</div><div style={{fontFamily:"Playfair Display",fontSize:11,color:"var(--mu)"}}>& Pesquisa</div><div style={{width:26,height:2,background:"var(--bl)",marginTop:7,borderRadius:99,animation:"ik .8s ease"}}/></div>}
-      <button onClick={()=>setCol(c=>!c)} style={{background:"#F7F9FC",border:"1.5px solid #DDE3EE",borderRadius:7,width:26,height:26,color:"var(--mu)",cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{col?"›":"‹"}</button>
+      {!col&&<div><div style={{fontFamily:"Playfair Display",fontSize:10,color:"var(--mu)",letterSpacing:2,textTransform:"uppercase"}}>Instituto de</div><div style={{fontFamily:"Playfair Display",fontSize:18,fontWeight:700,color:"var(--bl)"}}>Reflexologia</div><div style={{fontFamily:"Playfair Display",fontSize:10,color:"var(--mu)"}}>& Pesquisa</div><div style={{width:22,height:2,background:"var(--bl)",marginTop:6,borderRadius:99}}/></div>}
+      <button onClick={()=>setCol(c=>!c)} style={{background:"#F0F4FA",border:"none",borderRadius:7,width:26,height:26,color:"var(--mu)",cursor:"pointer",fontSize:12,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{col?"›":"‹"}</button>
     </div>
-    <nav style={{display:"flex",flexDirection:"column",gap:1,flex:1}}>
-      {NAV.map(n=><button key={n.id} onClick={()=>setActive(n.id)} title={col?n.lbl:""} style={{display:"flex",alignItems:"center",gap:col?0:9,padding:col?"9px 0":"9px 11px",justifyContent:col?"center":"flex-start",borderRadius:9,border:"none",cursor:"pointer",background:active===n.id?"#EEF4FF":"transparent",color:active===n.id?"var(--bl)":"var(--mu)",fontFamily:"DM Sans",fontSize:12,fontWeight:active===n.id?700:400,borderLeft:col?"none":`3px solid ${active===n.id?"var(--bl)":"transparent"}`,transition:"all .15s",textAlign:"left",width:"100%"}}>
-        <span style={{fontSize:col?15:13,flexShrink:0}}>{n.icon}</span>{!col&&<span style={{whiteSpace:"nowrap",overflow:"hidden"}}>{n.lbl}</span>}
+    <nav style={{display:"flex",flexDirection:"column",gap:1,flex:1,overflowY:"auto"}}>
+      {NAV.map(n=><button key={n.id} onClick={()=>setActive(n.id)} title={col?n.lbl:""} style={{display:"flex",alignItems:"center",gap:10,padding:col?"11px 0":"11px 12px",justifyContent:col?"center":"flex-start",borderRadius:9,border:"none",cursor:"pointer",background:active===n.id?"#EEF4FF":"transparent",color:active===n.id?"var(--bl)":"var(--mu)",fontFamily:"DM Sans",fontSize:13,fontWeight:active===n.id?700:400,borderLeft:`3px solid ${active===n.id?"var(--bl)":"transparent"}`,textAlign:"left",transition:"all .15s"}}>
+        <span style={{fontSize:14,flexShrink:0}}>{n.icon}</span>{!col&&n.lbl}
       </button>)}
     </nav>
     {!col&&<div style={{borderTop:"1px solid var(--b)",paddingTop:11,paddingLeft:5}}><div style={{fontSize:9,color:"var(--mu)",lineHeight:1.5}}>IOR · Gestão Pro<br/><span style={{color:"var(--bl)",fontWeight:600}}>v2025</span></div></div>}
@@ -1325,8 +1671,6 @@ export default function IOR(){
   const[drawer,setDrawer]     = useState(false);
   const curr=NAV.find(n=>n.id===page);
 
-  const shared={courses,students,leads,sales,templates};
-
   const pages={
     dash:    <DashPage     leads={leads} students={students} courses={courses} sales={sales}/>,
     crm:     <CRMPage      leads={leads} setLeads={setLeads} courses={courses} students={students} setStudents={setStudents} sales={sales} setSales={setSales}/>,
@@ -1336,7 +1680,8 @@ export default function IOR(){
     fin:     <FinancialPage sales={sales} setSales={setSales} courses={courses} students={students}/>,
     check:   <ChecklistPage checks={checks} setChecks={setChecks}/>,
     wa:      <WhatsAppPage  leads={leads} students={students} courses={courses} templates={templates} setTemplates={setTemplates}/>,
-    ped:     <PedagogicoPage students={students} courses={courses}/>,
+    ped:     <PedagogicoPage students={students} setStudents={setStudents} courses={courses}/>,
+    social:  <SocialPage/>,
     perms:   <PermissoesPage/>,
   };
 
