@@ -1,0 +1,79 @@
+# ══════════════════════════════════════════════════
+# IOR Gestão Pro — Stack Local (desenvolvimento)
+# docker compose up -d
+# ══════════════════════════════════════════════════
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ior_gestao
+      POSTGRES_USER: ior_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ior_dev_only}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ior_user -d ior_gestao"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning --requirepass ${REDIS_PASSWORD:-redis_dev_only}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 8080
+      DATABASE_URL: postgresql://ior_user:${POSTGRES_PASSWORD:-ior_dev_only}@postgres:5432/ior_gestao
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_dev_only}@redis:6379
+      ALLOWED_ORIGINS: http://localhost:5173,http://localhost:80
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      TENANT_ID: default
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+      args:
+        VITE_API_URL: http://localhost:8080/api
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  redis_data:

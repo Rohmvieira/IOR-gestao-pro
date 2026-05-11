@@ -36,13 +36,13 @@ function GS() {
     .bni{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;background:transparent;border:none;color:var(--mu);transition:color .15s}
     .bni.a{color:var(--bl)}
     .mob{display:none!important}.dsk{display:flex!important}
-    .notif-drop{position:absolute;top:38px;right:0;width:320px;background:#fff;border:1px solid var(--b);border-radius:14px;box-shadow:var(--shadow-md);z-index:400;max-height:420px;overflow-y:auto;animation:su .2s ease}
+    .notif-drop{position:absolute;top:38px;left:0;width:320px;background:#fff;border:1px solid var(--b);border-radius:14px;box-shadow:var(--shadow-md);z-index:400;max-height:420px;overflow-y:auto;animation:su .2s ease}
     @media(max-width:768px){
       .g2,.gdash,.gwa{grid-template-columns:1fr!important}
       .mob{display:flex!important}.dsk{display:none!important}
       .bn{display:flex!important}.sd{display:none!important}
       .mc{padding:13px!important;padding-bottom:calc(var(--bnh)+10px)!important}
-      .notif-drop{right:-80px;width:290px}
+      .notif-drop{left:0;right:auto;width:290px}
     }
   `}</style>;
 }
@@ -78,7 +78,43 @@ const IPERMS_INIT = {
 };
 
 /* ══════════════════════════════════════════════════
-   SEED DATA
+   API INTEGRATION — zero dados no frontend
+   Todos os dados vêm e vão para o backend/banco
+══════════════════════════════════════════════════ */
+const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) || '/api';
+
+async function apiFetch(path, method = 'GET', body) {
+  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('ior_token') : null;
+  const res = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: body != null ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(text || `HTTP ${res.status}`);
+  }
+  if (method === 'DELETE' || res.status === 204) return null;
+  return res.json();
+}
+
+/* Helpers de API por entidade */
+const API = {
+  courses:   { list: () => apiFetch('/courses'), create: d => apiFetch('/courses','POST',d), update: (id,d) => apiFetch(`/courses/${id}`,'PUT',d), remove: id => apiFetch(`/courses/${id}`,'DELETE') },
+  students:  { list: () => apiFetch('/students'), create: d => apiFetch('/students','POST',d), update: (id,d) => apiFetch(`/students/${id}`,'PUT',d), remove: id => apiFetch(`/students/${id}`,'DELETE') },
+  leads:     { list: () => apiFetch('/leads'), create: d => apiFetch('/leads','POST',d), update: (id,d) => apiFetch(`/leads/${id}`,'PUT',d), remove: id => apiFetch(`/leads/${id}`,'DELETE') },
+  products:  { list: () => apiFetch('/products'), create: d => apiFetch('/products','POST',d), update: (id,d) => apiFetch(`/products/${id}`,'PUT',d), remove: id => apiFetch(`/products/${id}`,'DELETE') },
+  sales:     { list: () => apiFetch('/sales'), create: d => apiFetch('/sales','POST',d), update: (id,d) => apiFetch(`/sales/${id}`,'PUT',d), remove: id => apiFetch(`/sales/${id}`,'DELETE') },
+  checks:    { list: () => apiFetch('/checks'), create: d => apiFetch('/checks','POST',d), update: (id,d) => apiFetch(`/checks/${id}`,'PUT',d), remove: id => apiFetch(`/checks/${id}`,'DELETE') },
+  templates: { list: () => apiFetch('/templates'), create: d => apiFetch('/templates','POST',d), update: (id,d) => apiFetch(`/templates/${id}`,'PUT',d), remove: id => apiFetch(`/templates/${id}`,'DELETE') },
+};
+
+/* ══════════════════════════════════════════════════
+   SEED DATA — REMOVIDO (dados ficam no banco)
+   Use o endpoint POST /api/seed para dados de demo
 ══════════════════════════════════════════════════ */
 const SEED_COURSES = [
   {id:101,name:"Reflexologia Podal – Módulo I",  type:"Curso",    date:"2025-03-15",end:"2025-03-16",modality:"Presencial",value:980, capacity:12,enrolled:[201,202,203],waitlist:[204],instructor:"Profa. Ana Lima",  desc:"Fundamentos da reflexologia podal pelo Método IOR.",
@@ -1650,33 +1686,76 @@ function BotNav({active,setActive,onMenu}){
 
 /* ══════════════════════════════════════════════════
    ROOT — SINGLE SOURCE OF TRUTH
+   Dados carregados do banco via API — zero dados no JS
 ══════════════════════════════════════════════════ */
 export default function IOR(){
   const[page,setPage]  = useState("dash");
-  const[courses,setCourses]   = useState(SEED_COURSES);
-  const[students,setStudents] = useState(SEED_STUDENTS);
-  const[leads,setLeads]       = useState(SEED_LEADS);
-  const[products,setProducts] = useState(SEED_PRODUCTS);
-  const[sales,setSales]       = useState(SEED_SALES);
-  const[checks,setChecks]     = useState(SEED_CHECKS);
-  const[templates,setTemplates]=useState(SEED_TEMPLATES);
+  const[courses,setCourses]   = useState([]);
+  const[students,setStudents] = useState([]);
+  const[leads,setLeads]       = useState([]);
+  const[products,setProducts] = useState([]);
+  const[sales,setSales]       = useState([]);
+  const[checks,setChecks]     = useState([]);
+  const[templates,setTemplates]=useState([]);
   const[socialMetrics,setSocialMetrics]=useState([]);
   const[drawer,setDrawer]     = useState(false);
+  const[loading,setLoading]   = useState(true);
+  const[loadErr,setLoadErr]   = useState(null);
   const curr=NAV.find(n=>n.id===page);
+
+  /* Carregamento inicial — todos os dados vêm do banco */
+  useEffect(()=>{
+    setLoading(true);
+    Promise.all([
+      API.courses.list(),
+      API.students.list(),
+      API.leads.list(),
+      API.products.list(),
+      API.sales.list(),
+      API.checks.list(),
+      API.templates.list(),
+    ]).then(([c,st,l,pr,sa,ch,tp])=>{
+      setCourses(c||[]);
+      setStudents(st||[]);
+      setLeads(l||[]);
+      setProducts(pr||[]);
+      setSales(sa||[]);
+      setChecks(ch||[]);
+      setTemplates(tp||[]);
+      setLoading(false);
+    }).catch(err=>{
+      console.error('Erro ao carregar dados:', err);
+      setLoadErr(err.message);
+      setLoading(false);
+    });
+  },[]);
 
   const pages={
     dash:    <DashPage     leads={leads} students={students} courses={courses} sales={sales}/>,
-    crm:     <CRMPage      leads={leads} setLeads={setLeads} courses={courses} students={students} setStudents={setStudents} sales={sales} setSales={setSales}/>,
-    produtos:<ProductsPage products={products} setProducts={setProducts} sales={sales} setSales={setSales}/>,
-    alunos:  <StudentsPage students={students} setStudents={setStudents} courses={courses} sales={sales} setSales={setSales} templates={templates}/>,
-    cursos:  <CoursesPage  courses={courses} setCourses={setCourses} students={students} setStudents={setStudents}/>,
-    fin:     <FinancialPage sales={sales} setSales={setSales} courses={courses} students={students}/>,
-    check:   <ChecklistPage checks={checks} setChecks={setChecks}/>,
-    wa:      <WhatsAppPage  leads={leads} students={students} courses={courses} templates={templates} setTemplates={setTemplates}/>,
-    ped:     <PedagogicoPage students={students} setStudents={setStudents} courses={courses}/>,
+    crm:     <CRMPage      leads={leads} setLeads={setLeads} courses={courses} students={students} setStudents={setStudents} sales={sales} setSales={setSales} apiLeads={API.leads} apiStudents={API.students} apiSales={API.sales}/>,
+    produtos:<ProductsPage products={products} setProducts={setProducts} sales={sales} setSales={setSales} apiProducts={API.products} apiSales={API.sales}/>,
+    alunos:  <StudentsPage students={students} setStudents={setStudents} courses={courses} sales={sales} setSales={setSales} templates={templates} apiStudents={API.students} apiSales={API.sales}/>,
+    cursos:  <CoursesPage  courses={courses} setCourses={setCourses} students={students} setStudents={setStudents} apiCourses={API.courses}/>,
+    fin:     <FinancialPage sales={sales} setSales={setSales} courses={courses} students={students} apiSales={API.sales}/>,
+    check:   <ChecklistPage checks={checks} setChecks={setChecks} apiChecks={API.checks}/>,
+    wa:      <WhatsAppPage  leads={leads} students={students} courses={courses} templates={templates} setTemplates={setTemplates} apiTemplates={API.templates}/>,
+    ped:     <PedagogicoPage students={students} setStudents={setStudents} courses={courses} apiStudents={API.students}/>,
     social:  <SocialPage socialMetrics={socialMetrics} setSocialMetrics={setSocialMetrics}/>,
     perms:   <PermissoesPage/>,
   };
+
+  if(loading) return <div style={{height:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"var(--bg)",fontFamily:"DM Sans",gap:14}}>
+    <div style={{width:44,height:44,border:"3px solid var(--bl)",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
+    <div style={{fontFamily:"Playfair Display",fontSize:18,color:"var(--bl)"}}>Carregando dados…</div>
+    <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+  </div>;
+
+  if(loadErr) return <div style={{height:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"var(--bg)",fontFamily:"DM Sans",gap:14,padding:24}}>
+    <div style={{fontSize:32}}>⚠️</div>
+    <div style={{fontFamily:"Playfair Display",fontSize:18,color:"var(--rd)"}}>Erro ao conectar com o servidor</div>
+    <div style={{fontSize:13,color:"var(--mu)",maxWidth:380,textAlign:"center"}}>{loadErr}</div>
+    <button onClick={()=>window.location.reload()} style={{background:"var(--bl)",color:"#fff",border:"none",borderRadius:9,padding:"10px 24px",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"DM Sans"}}>Tentar novamente</button>
+  </div>;
 
   return <>
     <GS/>

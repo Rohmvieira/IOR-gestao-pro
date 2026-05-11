@@ -1,0 +1,36 @@
+# Horizontal Pod Autoscaler — escala de 3 a 10 pods
+# Baseado em CPU e memória
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ior-api-hpa
+  namespace: ior-gestao
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ior-api
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70        # escala quando CPU > 70%
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80        # escala quando RAM > 80%
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30  # aguarda 30s antes de escalar pra cima
+      policies:
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300 # aguarda 5min antes de reduzir pods

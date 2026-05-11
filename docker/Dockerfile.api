@@ -1,0 +1,26 @@
+# Multi-stage build — API Express Node.js 24
+FROM node:24-alpine AS builder
+WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@latest --activate
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json tsconfig.json ./
+COPY artifacts/api-server/package.json ./artifacts/api-server/
+COPY lib/db/package.json ./lib/db/
+COPY lib/api-zod/package.json ./lib/api-zod/
+COPY lib/api-spec/ ./lib/api-spec/
+RUN pnpm install --frozen-lockfile
+COPY artifacts/api-server/ ./artifacts/api-server/
+COPY lib/ ./lib/
+RUN pnpm --filter @workspace/api-server run build
+
+FROM node:24-alpine AS runner
+WORKDIR /app
+RUN addgroup --system --gid 1001 appgroup && adduser --system --uid 1001 appuser
+RUN corepack enable
+COPY --from=builder --chown=appuser:appgroup /app/artifacts/api-server/dist ./dist
+COPY --from=builder --chown=appuser:appgroup /app/artifacts/api-server/package.json ./
+COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules
+USER appuser
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD wget -qO- http://localhost:${PORT:-8080}/api/healthz || exit 1
+EXPOSE 8080
+CMD ["node", "--enable-source-maps", "./dist/index.mjs"]

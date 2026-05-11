@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ior-config
+  namespace: ior-gestao
+data:
+  NODE_ENV: "production"
+  PORT: "8080"
+  TENANT_ID: "default"
+  # Defina ALLOWED_ORIGINS no Secret ou substitua aqui
+  ALLOWED_ORIGINS: "https://app.iorreflexologia.com.br"
