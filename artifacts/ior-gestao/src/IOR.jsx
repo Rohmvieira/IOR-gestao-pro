@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Legend } from "recharts";
+import { supabase, db } from "./lib/supabase.js";
 
 /* ══════════════════════════════════════════════════
    GLOBAL STYLES
@@ -75,41 +76,6 @@ const IPERMS_INIT = {
   "Secretaria":   MODULES.reduce((a,m)=>({...a,[m]:["Dashboard","Alunos","Cursos","Checklist","WA Lembretes"].includes(m)}),{}),
   "Professor(a)": MODULES.reduce((a,m)=>({...a,[m]:["Dashboard","Alunos","Cursos","Checklist","Pedagógico"].includes(m)}),{}),
   "Assistente":   MODULES.reduce((a,m)=>({...a,[m]:["Dashboard","Alunos","Cursos"].includes(m)}),{}),
-};
-
-/* ══════════════════════════════════════════════════
-   API INTEGRATION — zero dados no frontend
-   Todos os dados vêm e vão para o backend/banco
-══════════════════════════════════════════════════ */
-const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) || '/api';
-
-async function apiFetch(path, method = 'GET', body) {
-  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('ior_token') : null;
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: body != null ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText);
-    throw new Error(text || `HTTP ${res.status}`);
-  }
-  if (method === 'DELETE' || res.status === 204) return null;
-  return res.json();
-}
-
-/* Helpers de API por entidade */
-const API = {
-  courses:   { list: () => apiFetch('/courses'), create: d => apiFetch('/courses','POST',d), update: (id,d) => apiFetch(`/courses/${id}`,'PUT',d), remove: id => apiFetch(`/courses/${id}`,'DELETE') },
-  students:  { list: () => apiFetch('/students'), create: d => apiFetch('/students','POST',d), update: (id,d) => apiFetch(`/students/${id}`,'PUT',d), remove: id => apiFetch(`/students/${id}`,'DELETE') },
-  leads:     { list: () => apiFetch('/leads'), create: d => apiFetch('/leads','POST',d), update: (id,d) => apiFetch(`/leads/${id}`,'PUT',d), remove: id => apiFetch(`/leads/${id}`,'DELETE') },
-  products:  { list: () => apiFetch('/products'), create: d => apiFetch('/products','POST',d), update: (id,d) => apiFetch(`/products/${id}`,'PUT',d), remove: id => apiFetch(`/products/${id}`,'DELETE') },
-  sales:     { list: () => apiFetch('/sales'), create: d => apiFetch('/sales','POST',d), update: (id,d) => apiFetch(`/sales/${id}`,'PUT',d), remove: id => apiFetch(`/sales/${id}`,'DELETE') },
-  checks:    { list: () => apiFetch('/checks'), create: d => apiFetch('/checks','POST',d), update: (id,d) => apiFetch(`/checks/${id}`,'PUT',d), remove: id => apiFetch(`/checks/${id}`,'DELETE') },
-  templates: { list: () => apiFetch('/templates'), create: d => apiFetch('/templates','POST',d), update: (id,d) => apiFetch(`/templates/${id}`,'PUT',d), remove: id => apiFetch(`/templates/${id}`,'DELETE') },
 };
 
 /* ══════════════════════════════════════════════════
@@ -481,31 +447,35 @@ function CRMPage({leads,setLeads,courses,students,setStudents,sales,setSales}){
   const[form,setForm]=useState(eL);
   const f=v=>setForm(p=>({...p,...v}));
   const getCourse=id=>courses.find(c=>c.id===+id);
-  function save(){
+  async function save(){
     if(!form.name.trim())return;
     const course=getCourse(form.courseId);
     const finalForm={...form,courseId:+form.courseId||null};
     if(form.stage==="Fechado"&&(!editing||editing.stage!=="Fechado")){
       const existing=students.find(s=>s.email===form.email||s.phone===form.phone);
       if(!existing){
-        const nsId=Date.now();
-        setStudents(ss=>[...ss,{id:nsId,name:form.name,email:form.email,phone:form.phone,cpf:"",city:"",since:new Date().toISOString().slice(0,7),courses:form.courseId?[+form.courseId]:[],contract:false,contractFile:null,pType:"",pMethod:form.payment||"PIX",totalValue:+form.value||0,installments:0,instValue:0,payDay:null,startMonth:"",paidMonths:[],paid:false,certificate:[],interests:[],notes:form.notes,enrollmentDates:form.courseId?{[+form.courseId]:new Date().toISOString().slice(0,10)}:{},pedDocs:{}}]);
-        if(form.value&&+form.value>0){setSales(ss=>[...ss,{id:nsId+1,date:form.date,studentId:nsId,desc:course?.name||"Lead convertido",value:+form.value,payment:form.payment||"PIX",type:form.type||"Curso",notes:"Lead convertido"}]);}
+        const newSt={name:form.name,email:form.email,phone:form.phone,cpf:"",city:"",since:new Date().toISOString().slice(0,7),courses:form.courseId?[+form.courseId]:[],contract:false,pType:"",pMethod:form.payment||"PIX",totalValue:+form.value||0,installments:0,instValue:0,payDay:null,startMonth:"",paidMonths:[],paid:false,certificate:[],interests:[],notes:form.notes,enrollmentDates:form.courseId?{[+form.courseId]:new Date().toISOString().slice(0,10)}:{},pedDocs:{}};
+        const savedSt=await db.students.insert(newSt);
+        const stWithId=savedSt||{...newSt,id:Date.now()};
+        setStudents(ss=>[...ss,stWithId]);
+        if(form.value&&+form.value>0){const sale={date:form.date,studentId:stWithId.id,desc:course?.name||"Lead convertido",value:+form.value,payment:form.payment||"PIX",type:form.type||"Curso",notes:"Lead convertido"};const savedSale=await db.sales.insert(sale);setSales(ss=>[...ss,savedSale||{...sale,id:Date.now()}]);}
       } else {
         if(form.courseId&&!existing.courses.includes(+form.courseId)){
-          setStudents(ss=>ss.map(s=>s.id!==existing.id?s:{...s,courses:[...new Set([...s.courses,+form.courseId])]}));
-          if(form.value&&+form.value>0){setSales(ss=>[...ss,{id:Date.now()+2,date:form.date,studentId:existing.id,desc:course?.name||"Lead convertido",value:+form.value,payment:form.payment||"PIX",type:form.type||"Curso",notes:"Lead convertido"}]);}
+          const updated={...existing,courses:[...new Set([...existing.courses,+form.courseId])]};
+          setStudents(ss=>ss.map(s=>s.id!==existing.id?s:updated));
+          await db.students.update(existing.id,updated);
+          if(form.value&&+form.value>0){const sale={date:form.date,studentId:existing.id,desc:course?.name||"Lead convertido",value:+form.value,payment:form.payment||"PIX",type:form.type||"Curso",notes:"Lead convertido"};const savedSale=await db.sales.insert(sale);setSales(ss=>[...ss,savedSale||{...sale,id:Date.now()}]);}
         }
       }
     }
-    if(editing)setLeads(ls=>ls.map(l=>l.id===editing.id?{...finalForm,id:l.id}:l));
-    else setLeads(ls=>[...ls,{...finalForm,id:Date.now()}]);
+    if(editing){setLeads(ls=>ls.map(l=>l.id===editing.id?{...finalForm,id:l.id}:l));await db.leads.update(editing.id,finalForm);}
+    else{const saved=await db.leads.insert(finalForm);setLeads(ls=>[...ls,saved||{...finalForm,id:Date.now()}]);}
     setShowF(false);setEditing(null);setForm(eL);
   }
   function edit(l){setForm({...l,courseId:l.courseId||""});setEditing(l);setShowF(true);}
-  function del(id){setLeads(ls=>ls.filter(l=>l.id!==id));setShowF(false);setEditing(null);}
+  async function del(id){setLeads(ls=>ls.filter(l=>l.id!==id));await db.leads.delete(id);setShowF(false);setEditing(null);}
   const filtered=leads.filter(l=>!search||(l.name.toLowerCase()+(getCourse(l.courseId)?.name||"")).toLowerCase().includes(search.toLowerCase()));
-  function onDrop(stage){if(dragId==null)return;setLeads(ls=>ls.map(l=>l.id===dragId?{...l,stage}:l));setDragId(null);setDragOver(null);}
+  async function onDrop(stage){if(dragId==null)return;const lead=leads.find(l=>l.id===dragId);if(lead){setLeads(ls=>ls.map(l=>l.id===dragId?{...l,stage}:l));await db.leads.update(dragId,{...lead,stage});}setDragId(null);setDragOver(null);}
   return <div style={{animation:"up .4s ease"}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
       <div><h1 style={{fontFamily:"Playfair Display",fontSize:24,fontWeight:700}}>CRM · Leads</h1><p style={{color:"var(--mu)",fontSize:11,marginTop:2}}>{leads.length} leads · {leads.filter(l=>l.stage==="Fechado").length} fechados</p></div>
@@ -596,18 +566,19 @@ function ProductsPage({products,setProducts,sales,setSales}){
   const[form,setForm]=useState(e);
   async function addDoc(file){const f=await readFile(file);setForm(p=>({...p,documents:[...(p.documents||[]),f]}));}
   function removeDoc(idx){setForm(p=>({...p,documents:(p.documents||[]).filter((_,i)=>i!==idx)}));}
-  function save(){
+  async function save(){
     if(!form.product.trim())return;
     const wasNotClosed=!editing||editing.stage!=="Fechado";const isClosing=form.stage==="Fechado"&&wasNotClosed;
-    if(editing){setProducts(ps=>ps.map(p=>p.id===editing.id?{...form,id:p.id}:p));}
-    else{const id=Date.now();setProducts(ps=>[...ps,{...form,id}]);}
-    if(isClosing&&form.value&&+form.value>0){setSales(ss=>[...ss,{id:Date.now()+1,date:form.date||new Date().toISOString().slice(0,10),studentId:null,desc:form.product,value:+form.value,payment:"PIX",type:"Produto",notes:form.client}]);}
+    if(editing){setProducts(ps=>ps.map(p=>p.id===editing.id?{...form,id:p.id}:p));await db.products.update(editing.id,form);}
+    else{const saved=await db.products.insert(form);setProducts(ps=>[...ps,saved||{...form,id:Date.now()}]);}
+    if(isClosing&&form.value&&+form.value>0){const sale={date:form.date||new Date().toISOString().slice(0,10),studentId:null,desc:form.product,value:+form.value,payment:"PIX",type:"Produto",notes:form.client};const savedSale=await db.sales.insert(sale);setSales(ss=>[...ss,savedSale||{...sale,id:Date.now()}]);}
     setShowF(false);setEditing(null);setForm(e);
   }
   function edit(p){setForm({...p,documents:p.documents||[]});setEditing(p);setShowF(true);}
-  function moveStage(prod,stage){
-    setProducts(ps=>ps.map(p=>p.id===prod.id?{...p,stage}:p));
-    if(stage==="Fechado"&&prod.stage!=="Fechado"&&prod.value&&+prod.value>0){setSales(ss=>[...ss,{id:Date.now(),date:new Date().toISOString().slice(0,10),studentId:null,desc:prod.product,value:+prod.value,payment:"PIX",type:"Produto",notes:prod.client}]);}
+  async function moveStage(prod,stage){
+    const updated={...prod,stage};setProducts(ps=>ps.map(p=>p.id===prod.id?updated:p));
+    await db.products.update(prod.id,updated);
+    if(stage==="Fechado"&&prod.stage!=="Fechado"&&prod.value&&+prod.value>0){const sale={date:new Date().toISOString().slice(0,10),studentId:null,desc:prod.product,value:+prod.value,payment:"PIX",type:"Produto",notes:prod.client};const ss=await db.sales.insert(sale);setSales(prev=>[...prev,ss||{...sale,id:Date.now()}]);}
   }
   function onDrop(stage){if(dragId==null)return;const prod=products.find(p=>p.id===dragId);if(prod)moveStage(prod,stage);setDragId(null);setDragOver(null);}
   return <div style={{animation:"up .4s ease"}}>
@@ -685,16 +656,16 @@ function StudentsPage({students,setStudents,courses,sales,setSales,templates}){
     const matchStatus=filterStatus==="todos"||(filterStatus==="atrasados"&&od)||(filterStatus==="emDia"&&!od&&!pd)||(filterStatus==="quitados"&&pd);
     return matchSearch&&matchCourse&&matchStatus;
   });
-  function save(){
+  async function save(){
     if(!form.name.trim())return;
-    const target=editingSt?{...form,id:editingSt.id}:{...form,id:Date.now(),payDay:+form.payDay||null};
-    if(editingSt)setStudents(ss=>ss.map(s=>s.id===editingSt.id?target:s));
-    else{setStudents(ss=>[...ss,target]);target.courses.forEach(cid=>{const c=courses.find(x=>x.id===cid);if(c&&c.value>0){setSales(ss=>[...ss,{id:Date.now()+cid,date:target.since+"-01",studentId:target.id,desc:c.name,value:c.value,payment:target.pMethod||"PIX",type:c.type==="Workshop"?"Workshop":"Curso",notes:"Matrícula"}]);}});}
+    const base={...form,payDay:+form.payDay||null};
+    if(editingSt){setStudents(ss=>ss.map(s=>s.id===editingSt.id?{...base,id:editingSt.id}:s));await db.students.update(editingSt.id,base);}
+    else{const saved=await db.students.insert(base);const target=saved||{...base,id:Date.now()};setStudents(ss=>[...ss,target]);for(const cid of target.courses){const c=courses.find(x=>x.id===cid);if(c&&c.value>0){const sale={date:target.since+"-01",studentId:target.id,desc:c.name,value:c.value,payment:target.pMethod||"PIX",type:c.type==="Workshop"?"Workshop":"Curso",notes:"Matrícula"};const ss=await db.sales.insert(sale);setSales(prev=>[...prev,ss||{...sale,id:Date.now()}]);}}}
     setShowF(false);setEditingSt(null);setForm(e);
   }
-  function togglePaid(stId,idx){setStudents(ss=>ss.map(s=>{if(s.id!==stId)return s;const pm=[...(s.paidMonths||[])];const pos=pm.indexOf(idx);if(pos>=0)pm.splice(pos,1);else pm.push(idx);return {...s,paidMonths:pm};}));}
-  function toggleAVistaPaid(stId){setStudents(ss=>ss.map(s=>s.id!==stId?s:{...s,paid:!s.paid}));}
-  function toggleContract(stId){setStudents(ss=>ss.map(s=>s.id!==stId?s:{...s,contract:!s.contract}));}
+  async function togglePaid(stId,idx){let updated;setStudents(ss=>ss.map(s=>{if(s.id!==stId)return s;const pm=[...(s.paidMonths||[])];const pos=pm.indexOf(idx);if(pos>=0)pm.splice(pos,1);else pm.push(idx);updated={...s,paidMonths:pm};return updated;}));if(updated)await db.students.update(stId,updated);}
+  async function toggleAVistaPaid(stId){let updated;setStudents(ss=>ss.map(s=>{if(s.id!==stId)return s;updated={...s,paid:!s.paid};return updated;}));if(updated)await db.students.update(stId,updated);}
+  async function toggleContract(stId){let updated;setStudents(ss=>ss.map(s=>{if(s.id!==stId)return s;updated={...s,contract:!s.contract};return updated;}));if(updated)await db.students.update(stId,updated);}
   async function setContractFile(stId,file){setStudents(ss=>ss.map(s=>s.id!==stId?s:{...s,contractFile:file}));}
   function enrollCourse(stId,cid,enroll){
     const course=courses.find(x=>x.id===cid);
@@ -868,7 +839,7 @@ function CoursesPage({courses,setCourses,students,setStudents}){
   function addCLItem(){if(!clInput.trim())return;f({checklist:[...(form.checklist||[]),clInput.trim()]});setClInput("");}
   function removeCLItem(i){f({checklist:(form.checklist||[]).filter((_,idx)=>idx!==i),checklistDeadlines:Object.fromEntries(Object.entries(form.checklistDeadlines||{}).filter(([k])=>k!==(form.checklist||[])[i]))});}
   function setItemDeadline(item,date){f({checklistDeadlines:{...(form.checklistDeadlines||{}),[item]:date}});}
-  function save(){if(!form.name.trim())return;if(sel?.id)setCourses(cs=>cs.map(c=>c.id===sel.id?{...form,id:c.id}:c));else setCourses(cs=>[...cs,{...form,id:Date.now()}]);setShowF(false);setSel(null);setForm(e);}
+  async function save(){if(!form.name.trim())return;if(sel?.id){setCourses(cs=>cs.map(c=>c.id===sel.id?{...form,id:c.id}:c));await db.courses.update(sel.id,form);}else{const saved=await db.courses.insert(form);setCourses(cs=>[...cs,saved||{...form,id:Date.now()}]);}setShowF(false);setSel(null);setForm(e);}
   const cy=calM.getFullYear(),cm=calM.getMonth();
   const fd=new Date(cy,cm,1).getDay(),dm=new Date(cy,cm+1,0).getDate();
   function onDay(d){const ds=`${cy}-${String(cm+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;return courses.filter(c=>c.date<=ds&&c.end>=ds);}
@@ -1002,7 +973,7 @@ function FinancialPage({sales,setSales,courses,students}){
     return{mes:MOPT[parseInt(m.slice(5,7))-1],Real:real,Meta:monthlyGoal};
   });
   const inadimplentes=students.filter(isOverdue);
-  function save(){if(!form.desc||!form.value)return;setSales(ss=>[...ss,{...form,id:Date.now(),value:+form.value}]);setShowAdd(false);setForm(e);}
+  async function save(){if(!form.desc||!form.value)return;const data={...form,value:+form.value};const saved=await db.sales.insert(data);setSales(ss=>[...ss,saved||{...data,id:Date.now()}]);setShowAdd(false);setForm(e);}
   return <div style={{animation:"up .4s ease"}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
       <h1 style={{fontFamily:"Playfair Display",fontSize:24,fontWeight:700}}>Financeiro</h1>
@@ -1128,9 +1099,9 @@ function ChecklistPage({checks,setChecks}){
   const[slaConf,setSlaConf]=useState({Alta:{hours:6,notifyBefore:2},Média:{hours:24,notifyBefore:4},Baixa:{hours:48,notifyBefore:8}});
   const PC={Alta:"var(--rd)",Média:"var(--am)",Baixa:"var(--gn)"};
   const filtered=filter==="todas"?checks:filter==="feitas"?checks.filter(c=>c.done):checks.filter(c=>!c.done);
-  function add(){if(!nT.trim())return;setChecks(cs=>[...cs,{id:Date.now(),text:nT.trim(),done:false,priority:nP,due:nD,assignee:nA,createdAt:new Date().toISOString()}]);setNT("");setND("");setNA("");}
-  function toggle(id){setChecks(cs=>cs.map(c=>c.id===id?{...c,done:!c.done}:c));}
-  function remove(id){setChecks(cs=>cs.filter(c=>c.id!==id));}
+  async function add(){if(!nT.trim())return;const data={text:nT.trim(),done:false,priority:nP,due:nD,assignee:nA};const saved=await db.checks.insert(data);setChecks(cs=>[...cs,saved||{...data,id:Date.now(),createdAt:new Date().toISOString()}]);setNT("");setND("");setNA("");}
+  async function toggle(id){let updated;setChecks(cs=>cs.map(c=>{if(c.id!==id)return c;updated={...c,done:!c.done};return updated;}));if(updated)await db.checks.update(id,updated);}
+  async function remove(id){setChecks(cs=>cs.filter(c=>c.id!==id));await db.checks.delete(id);}
   function getSLA(c){if(c.done||!c.createdAt)return null;const conf=slaConf[c.priority]||slaConf.Média;const dl=new Date(new Date(c.createdAt).getTime()+conf.hours*3600000);const na=new Date(dl.getTime()-conf.notifyBefore*3600000);const now=new Date();const hl=Math.round((dl-now)/3600000);if(now>=dl)return{s:"vencido",label:`SLA vencido há ${Math.abs(hl)}h`,color:"var(--rd)"};if(now>=na)return{s:"alerta",label:`⚠️ ${hl}h restantes`,color:"var(--am)"};return{s:"ok",label:`${hl}h (SLA ${conf.hours}h)`,color:"var(--gn)"};}
   return <div style={{animation:"up .4s ease"}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
@@ -1186,7 +1157,7 @@ function WhatsAppPage({leads,students,courses,templates,setTemplates}){
   const inadimplentes=students.filter(isOverdue);
   const list=mode==="lead"?leads.filter(l=>(!fS||l.stage===fS)&&(!fC||courses.find(c=>c.id===l.courseId)?.name.toLowerCase().includes(fC.toLowerCase()))):mode==="aluno"?students:mode==="espera"?espera:inadimplentes;
   function applyTpl(t){const base=t.text;if(!target){setMsg(base);return;}const courseName=mode==="espera"?target.courseName:(target.courses||[]).map(cid=>courses.find(c=>c.id===cid)?.name||"").filter(Boolean)[0]||"";setMsg(base.replace("{nome}",target.name||"").replace("{curso}",courseName).replace("{data}",target.courseDate?fmtDate(target.courseDate):""));}
-  function saveTpl(){if(!nTN.trim()||!msg.trim())return;setTemplates(ts=>[...ts,{id:Date.now(),name:nTN.trim(),text:msg}]);setNTN("");setShowTM(false);}
+  async function saveTpl(){if(!nTN.trim()||!msg.trim())return;const data={name:nTN.trim(),text:msg};const saved=await db.templates.insert(data);setTemplates(ts=>[...ts,saved||{...data,id:Date.now()}]);setNTN("");setShowTM(false);}
   function openWA(){if(!target)return;if(!msg.trim())return;const p=(target.phone||"").replace(/\D/g,"");if(p)window.open(`https://wa.me/55${p}?text=${encodeURIComponent(msg)}`,"_blank");else navigator.clipboard.writeText(msg);}
   return <div style={{animation:"up .4s ease"}}>
     <div style={{marginBottom:16}}><h1 style={{fontFamily:"Playfair Display",fontSize:24,fontWeight:700}}>Lembretes WhatsApp</h1><p style={{color:"var(--mu)",fontSize:11,marginTop:2}}>Selecione · escreva ou use modelo · envie</p></div>
@@ -1420,7 +1391,7 @@ function SocialPage({socialMetrics,setSocialMetrics}){
   const fd=new Date(cy,cm,1).getDay(),dm=new Date(cy,cm+1,0).getDate();
   function postsOnDay(d){const ds=`${cy}-${String(cm+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;return posts.filter(p=>p.date===ds);}
   function savePost(){if(!form.date||!form.caption)return;if(editing)setPosts(ps=>ps.map(p=>p.id===editing.id?{...form,id:p.id}:p));else setPosts(ps=>[...ps,{...form,id:Date.now()}]);setShowForm(false);setEditing(null);setForm(eP);}
-  function saveMetric(){if(!mForm.month)return;if(editingMetric)setSocialMetrics(ms=>ms.map(m=>m.id===editingMetric.id?{...mForm,id:m.id}:m));else setSocialMetrics(ms=>[...ms,{...mForm,id:Date.now()}]);setShowMetricForm(false);setEditingMetric(null);setMForm(eM);}
+  async function saveMetric(){if(!mForm.month)return;if(editingMetric){setSocialMetrics(ms=>ms.map(m=>m.id===editingMetric.id?{...mForm,id:m.id}:m));await db.metrics.update(editingMetric.id,mForm);}else{const saved=await db.metrics.insert(mForm);setSocialMetrics(ms=>[...ms,saved||{...mForm,id:Date.now()}]);}setShowMetricForm(false);setEditingMetric(null);setMForm(eM);}
   const sortedMetrics=[...socialMetrics].sort((a,b)=>a.month.localeCompare(b.month));
   const metricsChart=sortedMetrics.slice(-8).map(m=>({mes:MOPT[parseInt(m.month.slice(5,7))-1]+" "+m.month.slice(2,4),Seguidores:+m.totalFollowers,Views:+m.totalViews,Interações:+m.interactions}));
   const IA_TEMPLATES={"Reflexologia":["🌿 Você sabia que a reflexologia pode aliviar tensões acumuladas no dia a dia? Nossos alunos aprendem técnicas que transformam vidas!\n\n#reflexologia #bemestar #saude #metodoIOR","✨ A reflexologia podal conecta corpo e mente. Cada ponto nos pés reflete um órgão, um sistema, uma emoção. Aprenda com referência!\n\n#reflexologiapodal #terapiasholisticas"],"Curso/Workshop":["🎓 Vagas abertas para nosso próximo curso de Reflexologia Podal! Aprenda o Método IOR com instrutoras especializadas.\n\n#cursoreflexologia #metodoIOR #terapia","📚 Quer transformar sua prática? Nosso workshop intensivo está chegando. Inscrições abertas!\n\n#workshop #reflexologiafacial #terapeutaholistica"],"Bem-estar":["💆 Cuidar de si é um ato de amor. A reflexologia equilibra energia, reduz estresse e promove bem-estar completo.\n\n#autocuidado #bemestar #reflexologia","🌸 Quando foi a última vez que você priorizou seu bem-estar? A reflexologia é um caminho gentil para se reconectar.\n\n#bemestar #saúde #reflexologia"],"Depoimento":["⭐ \"A reflexologia mudou minha relação com meu corpo. Aprendi a ouvir os sinais com mais consciência.\" – Aluna IOR\n\n#depoimento #transformacao #reflexologia","🙏 \"Depois do curso, minha prática ficou muito mais segura e eficiente.\" – Terapeuta formada pelo IOR\n\n#resultado #reflexologia #terapeutaholistica"],"Dica":["💡 Pressione suavemente o centro da planta do pé por 30 segundos. Esse ponto estimula energia e vitalidade!\n\n#dica #reflexologia #autocuidado","🌿 Massagear os dedos dos pés pode ajudar a aliviar dores de cabeça. A reflexologia tem respostas para o corpo inteiro!\n\n#dica #reflexologiapodal"],"Evento":["📅 Evento especial chegando! Marque na agenda e não perca essa oportunidade de aprendizado.\n\n#evento #reflexologia #crescimentoprofissional","🗓️ Nossa próxima turma está se formando! Se você sonha em trabalhar com terapias holísticas, esse é o momento.\n\n#turmanova #reflexologia"],"Bastidores":["📸 Bastidores do nosso último curso! Ver nossos alunos em ação é sempre gratificante.\n\n#bastidores #reflexologia #alunos","🎯 Nos preparando para mais uma turma incrível! Os materiais estão prontos, as instrutoras animadas.\n\n#bastidores #preparacao #reflexologia"]};
@@ -1655,7 +1626,10 @@ function SDDesk({active,setActive,students,courses,checks}){
         <span style={{fontSize:14,flexShrink:0}}>{n.icon}</span>{!col&&n.lbl}
       </button>)}
     </nav>
-    {!col&&<div style={{borderTop:"1px solid var(--b)",paddingTop:11,paddingLeft:5}}><div style={{fontSize:9,color:"var(--mu)",lineHeight:1.5}}>IOR · Gestão Pro<br/><span style={{color:"var(--bl)",fontWeight:600}}>v2025</span></div></div>}
+    {!col&&<div style={{borderTop:"1px solid var(--b)",paddingTop:11,paddingLeft:5}}>
+      <div style={{fontSize:9,color:"var(--mu)",lineHeight:1.5}}>IOR · Gestão Pro<br/><span style={{color:"var(--bl)",fontWeight:600}}>v2025</span></div>
+      <button onClick={()=>supabase.auth.signOut()} style={{marginTop:8,background:"#FEF2F2",border:"1.5px solid #FECACA",borderRadius:8,padding:"5px 10px",fontSize:11,color:"var(--rd)",cursor:"pointer",fontFamily:"DM Sans",fontWeight:600,width:"100%"}}>Sair</button>
+    </div>}
   </div>;
 }
 
@@ -1701,34 +1675,39 @@ export default function IOR(){
   const[drawer,setDrawer]     = useState(false);
   const[loading,setLoading]   = useState(true);
   const[loadErr,setLoadErr]   = useState(null);
+  const[user,setUser]         = useState(null);
   const curr=NAV.find(n=>n.id===page);
 
-  /* Carregamento inicial — todos os dados vêm do banco */
+  /* ── Autenticação: escuta mudanças de sessão */
   useEffect(()=>{
+    supabase.auth.getSession().then(({data:{session}})=>{
+      setUser(session?.user||null);
+      if(!session) setLoading(false);
+    });
+    const {data:{subscription}} = supabase.auth.onAuthStateChange((_e,session)=>{
+      setUser(session?.user||null);
+      if(!session){ setLoading(false); setCourses([]); setStudents([]); setLeads([]); setProducts([]); setSales([]); setChecks([]); setTemplates([]); }
+    });
+    return ()=>subscription.unsubscribe();
+  },[]);
+
+  /* ── Carregamento de dados quando autenticado */
+  useEffect(()=>{
+    if(!user){ return; }
     setLoading(true);
     Promise.all([
-      API.courses.list(),
-      API.students.list(),
-      API.leads.list(),
-      API.products.list(),
-      API.sales.list(),
-      API.checks.list(),
-      API.templates.list(),
-    ]).then(([c,st,l,pr,sa,ch,tp])=>{
-      setCourses(c||[]);
-      setStudents(st||[]);
-      setLeads(l||[]);
-      setProducts(pr||[]);
-      setSales(sa||[]);
-      setChecks(ch||[]);
-      setTemplates(tp||[]);
+      db.courses.list(), db.students.list(), db.leads.list(),
+      db.products.list(), db.sales.list(), db.checks.list(),
+      db.templates.list(), db.metrics.list(),
+    ]).then(([c,st,l,pr,sa,ch,tp,mt])=>{
+      setCourses(c||[]); setStudents(st||[]); setLeads(l||[]);
+      setProducts(pr||[]); setSales(sa||[]); setChecks(ch||[]);
+      setTemplates(tp||[]); setSocialMetrics(mt||[]);
       setLoading(false);
-    }).catch(err=>{
-      console.error('Erro ao carregar dados:', err);
-      setLoadErr(err.message);
-      setLoading(false);
-    });
-  },[]);
+    }).catch(err=>{ setLoadErr(err.message); setLoading(false); });
+  },[user]);
+
+  /* ── Tela de login — gerenciado pelo App.tsx */
 
   const pages={
     dash:    <DashPage     leads={leads} students={students} courses={courses} sales={sales}/>,
