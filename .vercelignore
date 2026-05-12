@@ -1,0 +1,10 @@
+node_modules
+artifacts/api-server
+docker
+k8s
+nginx
+scripts
+*.bak
+.env
+.env.*
+!.env.example
