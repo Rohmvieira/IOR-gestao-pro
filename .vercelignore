@@ -1,10 +1,10 @@
-node_modules
-artifacts/api-server
+# O api-server não é servido pela Vercel (só o frontend)
+# mas precisa estar presente para o pnpm instalar o workspace
 docker
 k8s
 nginx
-scripts
 *.bak
 .env
 .env.*
 !.env.example
+attached_assets
