@@ -1892,52 +1892,63 @@ function UsersPage(){
   const[editing,setEditing]=useState(null);
   const[err,setErr]=useState("");
   const[saving,setSaving]=useState(false);
+  const[mode,setMode]=useState("invite"); // "invite" | "password"
+  const[successMsg,setSuccessMsg]=useState("");
   const eF={name:"",email:"",password:"",role:ROLES[1]};
   const[form,setForm]=useState(eF);
   const ff=v=>setForm(p=>({...p,...v}));
 
-  async function callEdge(method,body){
+  async function callEdge(body){
     const{data:{session}}=await supabase.auth.getSession();
     const res=await fetch(EDGE,{
-      method,
+      method:"POST",
       headers:{"Content-Type":"application/json","Authorization":`Bearer ${session?.access_token}`},
-      ...(body?{body:JSON.stringify(body)}:{})
+      body:JSON.stringify(body),
     });
     return res.json();
   }
 
   async function load(){
     setLoading(true);setErr("");
-    const data=await callEdge("GET");
-    if(data.error)setErr(data.error);else setUsers(data||[]);
+    const data=await callEdge({action:"list"});
+    if(data.error)setErr(data.error);
+    else setUsers(data.data||[]);
     setLoading(false);
   }
   useEffect(()=>{load();},[]);
 
   async function save(){
-    if(!form.name.trim()||!form.email.trim())return;
-    if(!editing&&!form.password.trim()){setErr("Senha obrigatória para novo usuário");return;}
+    if(!form.name.trim()||!form.email.trim()){setErr("Nome e e-mail são obrigatórios");return;}
     setSaving(true);setErr("");
     let data;
     if(editing){
-      data=await callEdge("PATCH",{userId:editing.id,action:"update",name:form.name,role:form.role,...(form.password?{password:form.password}:{})});
+      data=await callEdge({action:"update",userId:editing.id,name:form.name,userRole:form.role,...(form.password?{newPassword:form.password}:{})});
+    } else if(mode==="invite"){
+      data=await callEdge({action:"invite",email:form.email,name:form.name,userRole:form.role,redirectTo:window.location.origin+"/auth/callback"});
     } else {
-      data=await callEdge("POST",{email:form.email,password:form.password,name:form.name,role:form.role});
+      if(!form.password.trim()){setErr("Senha obrigatória");setSaving(false);return;}
+      data=await callEdge({action:"create",email:form.email,password:form.password,name:form.name,userRole:form.role});
     }
     if(data.error){setErr(data.error);}
-    else{setShowF(false);setEditing(null);setForm(eF);await load();}
+    else{
+      setShowF(false);setEditing(null);setForm(eF);
+      setSuccessMsg(mode==="invite"&&!editing?`✉ Convite enviado para ${form.email}!`:"✓ Usuário salvo com sucesso!");
+      setTimeout(()=>setSuccessMsg(""),4000);
+      await load();
+    }
     setSaving(false);
+  }
+
+  async function resendInvite(u){
+    setErr("");
+    const data=await callEdge({action:"resend_invite",email:u.email,name:u.name,userRole:u.role,redirectTo:window.location.origin+"/auth/callback"});
+    if(data.error)setErr(data.error);
+    else{setSuccessMsg(`✉ Convite reenviado para ${u.email}!`);setTimeout(()=>setSuccessMsg(""),4000);}
   }
 
   async function toggleActive(u){
     setErr("");
-    const data=await callEdge("PATCH",{userId:u.id,action:u.active?"deactivate":"reactivate"});
-    if(data.error)setErr(data.error);else await load();
-  }
-
-  async function removeUser(u){
-    if(!window.confirm(`Excluir ${u.name}? Esta ação não pode ser desfeita.`))return;
-    const data=await callEdge("DELETE",{userId:u.id});
+    const data=await callEdge({action:u.active?"deactivate":"reactivate",userId:u.id});
     if(data.error)setErr(data.error);else await load();
   }
 
@@ -1949,33 +1960,34 @@ function UsersPage(){
         <h1 style={{fontFamily:"Playfair Display",fontSize:24,fontWeight:700}}>Usuários</h1>
         <p style={{color:"var(--mu)",fontSize:11,marginTop:2}}>{users.length} conta{users.length!==1?"s":""} · gerenciado pela Proprietária</p>
       </div>
-      <Btn sz="sm" onClick={()=>{setForm(eF);setEditing(null);setErr("");setShowF(true);}}>+ Novo usuário</Btn>
+      <Btn sz="sm" onClick={()=>{setForm(eF);setEditing(null);setErr("");setMode("invite");setShowF(true);}}>+ Novo usuário</Btn>
     </div>
 
     {err&&<div style={{background:"#FEF2F2",border:"1.5px solid #FECACA",borderRadius:10,padding:"10px 14px",fontSize:13,color:"var(--rd)",marginBottom:14,fontWeight:600}}>⚠ {err}</div>}
+    {successMsg&&<div style={{background:"#F0FDF4",border:"1.5px solid #BBF7D0",borderRadius:10,padding:"10px 14px",fontSize:13,color:"var(--gn)",marginBottom:14,fontWeight:600,animation:"fadeIn .3s ease"}}>{successMsg}</div>}
 
     {loading?<div style={{textAlign:"center",padding:"40px 0",color:"var(--mu)",fontSize:13}}>Carregando usuários…</div>:(
       <div style={{display:"flex",flexDirection:"column",gap:9}}>
-        {users.map((u,i)=><div key={u.id} style={{background:"#fff",borderRadius:14,padding:"14px 16px",border:`1.5px solid ${u.active?"#E5EAF3":"#FECACA"}`,display:"flex",alignItems:"center",gap:12,boxShadow:"var(--shadow)",animation:`sr .3s ease ${i*.05}s both`,opacity:u.active?1:.6}}>
-          <Av letter={u.name[0]} size={40} color={ROLE_C[u.role]||"var(--mu)"}/>
-          <div style={{flex:1}}>
+        {users.map((u,i)=><div key={u.id} style={{background:"#fff",borderRadius:14,padding:"14px 16px",border:`1.5px solid ${!u.active?"#FECACA":u.invited?"#FEF3C7":"#E5EAF3"}`,display:"flex",alignItems:"center",gap:12,boxShadow:"var(--shadow)",animation:`sr .3s ease ${i*.05}s both`,opacity:u.active?1:.6}}>
+          <Av letter={(u.name||"?")[0]} size={40} color={ROLE_C[u.role]||"var(--mu)"}/>
+          <div style={{flex:1,minWidth:0}}>
             <div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}>
-              <span style={{fontWeight:700,fontSize:13}}>{u.name}</span>
+              <span style={{fontWeight:700,fontSize:13}}>{u.name||"—"}</span>
               <Chip color={ROLE_C[u.role]||"var(--mu)"} sm>{u.role}</Chip>
+              {u.invited&&<Chip color="var(--am)" sm>⏳ Convite pendente</Chip>}
               {!u.active&&<Chip color="var(--rd)" sm>Desativado</Chip>}
             </div>
             <div style={{fontSize:11,color:"var(--mu)",marginTop:2}}>{u.email}</div>
             <div style={{fontSize:10,color:"var(--mu2)",marginTop:2}}>
-              {u.lastSignIn?`Último acesso: ${new Date(u.lastSignIn).toLocaleDateString("pt-BR")}`:"Nunca acessou"}
-              {" · "}Criado: {new Date(u.createdAt).toLocaleDateString("pt-BR")}
+              {u.invited?"Aguardando aceite do convite":u.lastSignIn?`Último acesso: ${new Date(u.lastSignIn).toLocaleDateString("pt-BR")}`:"Nunca acessou"}
             </div>
           </div>
-          <div style={{display:"flex",gap:6}}>
+          <div style={{display:"flex",gap:6,flexShrink:0}}>
+            {u.invited&&<button onClick={()=>resendInvite(u)} style={{background:"#FFFBEB",border:"1.5px solid #FDE68A",borderRadius:9,padding:"5px 10px",fontSize:11,color:"var(--am)",cursor:"pointer",fontFamily:"DM Sans",fontWeight:600}} title="Reenviar e-mail de convite">✉ Reenviar</button>}
             <Btn sz="sm" v="ghost" onClick={()=>{setForm({name:u.name,email:u.email,password:"",role:u.role});setEditing(u);setErr("");setShowF(true);}}>✏️</Btn>
             <button onClick={()=>toggleActive(u)} style={{background:u.active?"#FEF2F2":"#F0FDF4",border:`1.5px solid ${u.active?"#FECACA":"#BBF7D0"}`,borderRadius:9,padding:"5px 10px",fontSize:11,color:u.active?"var(--rd)":"var(--gn)",cursor:"pointer",fontFamily:"DM Sans",fontWeight:600}}>
               {u.active?"Desativar":"Reativar"}
             </button>
-            <button onClick={()=>removeUser(u)} style={{background:"transparent",border:"none",color:"#DDE3EE",cursor:"pointer",fontSize:16,padding:"0 4px"}} title="Excluir">×</button>
           </div>
         </div>)}
         {!users.length&&<div style={{textAlign:"center",padding:"32px 0",color:"var(--mu)",fontSize:12}}>Nenhum usuário encontrado.</div>}
@@ -1984,9 +1996,28 @@ function UsersPage(){
 
     {showF&&<Modal title={editing?"Editar Usuário":"Novo Usuário"} sub={editing?.email} onClose={()=>{setShowF(false);setEditing(null);setErr("");}}>
       {err&&<div style={{background:"#FEF2F2",border:"1.5px solid #FECACA",borderRadius:9,padding:"8px 12px",fontSize:12,color:"var(--rd)",marginBottom:11,fontWeight:600}}>⚠ {err}</div>}
+
+      {/* Seletor de modo — só aparece ao criar */}
+      {!editing&&<div style={{display:"flex",gap:8,marginBottom:14}}>
+        <button onClick={()=>setMode("invite")} style={{flex:1,padding:"10px 0",borderRadius:10,border:`2px solid ${mode==="invite"?"var(--bl)":"#DDE3EE"}`,background:mode==="invite"?"#EEF4FF":"#F7F9FC",color:mode==="invite"?"var(--bl)":"var(--mu)",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"DM Sans"}}>
+          ✉ Enviar convite
+        </button>
+        <button onClick={()=>setMode("password")} style={{flex:1,padding:"10px 0",borderRadius:10,border:`2px solid ${mode==="password"?"var(--bl)":"#DDE3EE"}`,background:mode==="password"?"#EEF4FF":"#F7F9FC",color:mode==="password"?"var(--bl)":"var(--mu)",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"DM Sans"}}>
+          🔑 Criar com senha
+        </button>
+      </div>}
+
+      {/* Descrição do modo */}
+      {!editing&&<div style={{background:mode==="invite"?"#EEF4FF":"#F7F9FC",borderRadius:9,padding:"8px 12px",fontSize:11,color:mode==="invite"?"var(--bl)":"var(--mu)",marginBottom:12,lineHeight:1.5}}>
+        {mode==="invite"
+          ? "✉ A usuária receberá um e-mail com link para criar a própria senha. Mais seguro e profissional."
+          : "🔑 Você define a senha agora. Lembre de comunicá-la à usuária com segurança."}
+      </div>}
+
       <Inp label="Nome completo *" value={form.name} onChange={e=>ff({name:e.target.value})} placeholder="Ex: Ana Lima"/>
       {!editing&&<Inp label="E-mail *" value={form.email} onChange={e=>ff({email:e.target.value})} type="email" placeholder="ana@iorreflexologia.com"/>}
-      <Inp label={editing?"Nova senha (deixe em branco para manter)":"Senha *"} value={form.password} onChange={e=>ff({password:e.target.value})} type="password" placeholder="Mínimo 8 caracteres"/>
+      {(mode==="password"||editing)&&<Inp label={editing?"Nova senha (deixe em branco para manter)":"Senha *"} value={form.password} onChange={e=>ff({password:e.target.value})} type="password" placeholder="Mínimo 8 caracteres"/>}
+
       <Lbl>Perfil de acesso</Lbl>
       <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:14}}>
         {ROLES.map(r=><button key={r} onClick={()=>ff({role:r})} style={{background:form.role===r?`${ROLE_C[r]||"var(--mu)"}15`:"#F7F9FC",border:`1.5px solid ${form.role===r?ROLE_C[r]||"var(--mu)":"#DDE3EE"}`,color:form.role===r?ROLE_C[r]||"var(--mu)":"var(--mu)",borderRadius:99,padding:"5px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{r}</button>)}
@@ -1994,7 +2025,9 @@ function UsersPage(){
       <div style={{background:"#EEF4FF",borderRadius:9,padding:"8px 12px",fontSize:11,color:"var(--bl)",marginBottom:14}}>
         ℹ As permissões de cada perfil são configuradas na aba <strong>Permissões</strong>.
       </div>
-      <Btn style={{width:"100%"}} onClick={save} disabled={saving}>{saving?"Salvando…":editing?"Salvar alterações":"Criar usuário"}</Btn>
+      <Btn style={{width:"100%"}} onClick={save} disabled={saving}>
+        {saving?"Salvando…":editing?"Salvar alterações":mode==="invite"?"✉ Enviar convite":"🔑 Criar usuário"}
+      </Btn>
     </Modal>}
   </div>;
 }

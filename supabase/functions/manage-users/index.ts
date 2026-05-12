@@ -20,14 +20,12 @@ Deno.serve(async (req: Request) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return json({ error: "Token não fornecido" }, 401);
 
-    // Admin client — usa service_role para operações privilegiadas
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    // Verifica quem está chamando
     const caller = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
@@ -37,7 +35,6 @@ Deno.serve(async (req: Request) => {
     const { data: { user }, error: authErr } = await caller.auth.getUser();
     if (authErr || !user) return json({ error: "Sessão inválida" }, 401);
 
-    // Verifica se é Proprietária
     const { data: profile } = await admin
       .from("user_profiles")
       .select("role")
@@ -63,24 +60,23 @@ Deno.serve(async (req: Request) => {
         data: users.map((u: any) => ({
           id: u.id,
           email: u.email,
-          name: pm[u.id]?.name || u.user_metadata?.name || "",
+          name: pm[u.id]?.name || u.user_metadata?.name || u.user_metadata?.full_name || "",
           role: pm[u.id]?.role || u.app_metadata?.role || "Assistente",
           active: pm[u.id]?.active ?? true,
+          invited: !u.last_sign_in_at && !!u.invited_at,
           lastSignIn: u.last_sign_in_at,
           createdAt: u.created_at,
         })),
       });
     }
 
-    // ── Criar usuário
+    // ── Criar com senha (admin define a senha)
     if (body.action === "create") {
       const { email, password, name, userRole } = body;
-      if (!email || !password || !name || !userRole) {
+      if (!email || !password || !name || !userRole)
         return json({ error: "email, password, name e role são obrigatórios" }, 422);
-      }
-      if (password.length < 8) {
+      if (password.length < 8)
         return json({ error: "Senha mínima de 8 caracteres" }, 422);
-      }
       const { data: nu, error } = await admin.auth.admin.createUser({
         email,
         password,
@@ -89,7 +85,35 @@ Deno.serve(async (req: Request) => {
         email_confirm: true,
       });
       if (error) throw error;
-      return json({ data: { id: nu.user.id, email, name, role: userRole } }, 201);
+      return json({ data: { id: nu.user.id, email, name, role: userRole, invited: false } }, 201);
+    }
+
+    // ── Convidar por e-mail (usuária escolhe a própria senha)
+    if (body.action === "invite") {
+      const { email, name, userRole, redirectTo } = body;
+      if (!email || !name || !userRole)
+        return json({ error: "email, name e role são obrigatórios" }, 422);
+      const { data: inv, error } = await admin.auth.admin.inviteUserByEmail(email, {
+        data: { name, role: userRole, tenant_id: "default" },
+        redirectTo: redirectTo || `${Deno.env.get("SITE_URL") || "https://app.iorreflexologia.com.br"}/auth/callback`,
+      });
+      if (error) throw error;
+      await admin.auth.admin.updateUserById(inv.user.id, {
+        app_metadata: { role: userRole, tenant_id: "default" },
+      });
+      return json({ data: { id: inv.user.id, email, name, role: userRole, invited: true } }, 201);
+    }
+
+    // ── Reenviar convite
+    if (body.action === "resend_invite") {
+      const { email, name, userRole, redirectTo } = body;
+      if (!email) return json({ error: "email obrigatório" }, 422);
+      const { error } = await admin.auth.admin.inviteUserByEmail(email, {
+        data: { name, role: userRole, tenant_id: "default" },
+        redirectTo: redirectTo || `${Deno.env.get("SITE_URL") || "https://app.iorreflexologia.com.br"}/auth/callback`,
+      });
+      if (error) throw error;
+      return json({ data: { success: true } });
     }
 
     // ── Editar nome/perfil
