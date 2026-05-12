@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
 export const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL || 'https://odegosowuketirxdgllb.supabase.co',
-  import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_FoDiSdk9ynZ1yRDpJ1KDwg_B1c2S9E2'
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
 );
 
 /* ══════════════════════════════════════════════════

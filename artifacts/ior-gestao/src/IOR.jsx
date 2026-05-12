@@ -757,7 +757,7 @@ function StudentsPage({students,setStudents,courses,sales,setSales,templates}){
     setStudents(ss=>ss.map(s=>{if(s.id!==stId)return s;const cs=enroll?[...new Set([...s.courses,cid])]:s.courses.filter(x=>x!==cid);const ed={...(s.enrollmentDates||{})};if(enroll)ed[cid]=new Date().toISOString().slice(0,10);else delete ed[cid];return {...s,courses:cs,enrollmentDates:ed};}));
     if(enroll&&course&&course.value>0){setSales(ss=>[...ss,{id:Date.now(),date:new Date().toISOString().slice(0,10),studentId:stId,desc:course.name,value:course.value,payment:"PIX",type:course.type==="Workshop"?"Workshop":"Curso",notes:"Matrícula direta"}]);}
   }
-  function openWA(st,msg){const p=(st.phone||"").replace(/\D/g,"");if(p)window.open(`https://wa.me/55${p}?text=${encodeURIComponent(msg)}`,"_blank");else navigator.clipboard.writeText(msg);}
+  function openWA(st,msg){const p=(st.phone||"").replace(/\D/g,"");if(p&&p.length>=10&&p.length<=13)window.open(`https://wa.me/55${p}?text=${encodeURIComponent(msg)}`,"_blank");else navigator.clipboard.writeText(msg);}
   return <div style={{animation:"up .4s ease"}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
       <div><h1 style={{fontFamily:"Playfair Display",fontSize:24,fontWeight:700}}>Alunos</h1><p style={{color:"var(--mu)",fontSize:11,marginTop:2}}>{students.length} cadastrados · {students.filter(isOverdue).length} pendentes · {students.filter(isPaid).length} quitados</p></div>
