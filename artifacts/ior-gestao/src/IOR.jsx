@@ -506,7 +506,10 @@ function CRMPage({leads,setLeads,courses,students,setStudents,sales,setSales}){
                   {lead.value?<span style={{fontSize:11,fontWeight:700,color:"var(--bl)"}}>R${(+lead.value).toLocaleString()}</span>:<span/>}
                   {lead.source&&<Chip color="var(--mu)" sm>{lead.source}</Chip>}
                 </div>
-                <div style={{fontSize:10,color:"var(--mu2)",marginTop:3}}>{fmtDate(lead.date)}</div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:5}}>
+                  <div style={{fontSize:10,color:"var(--mu2)"}}>{fmtDate(lead.date)}</div>
+                  {lead.phone&&<a href={`https://wa.me/55${lead.phone.replace(/\D/g,"")}?text=${encodeURIComponent("Olá "+lead.name+"! Tudo bem? Vi seu interesse em nossos cursos de reflexologia. Posso te ajudar? 🌿")}`} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} style={{background:"linear-gradient(135deg,#25D366,#128C7E)",borderRadius:6,padding:"3px 7px",color:"#fff",fontSize:10,fontWeight:700,textDecoration:"none"}} title="Abrir WhatsApp">💬</a>}
+                </div>
               </div>;})}
               {!cards.length&&<div style={{textAlign:"center",fontSize:11,color:"var(--mu2)",padding:"10px 0"}}>Arraste cards aqui</div>}
             </div>
@@ -1072,7 +1075,7 @@ function FinancialPage({sales,setSales,courses,students}){
                 <Chip color="var(--am)" sm>Pendente: R${pendingVal.toLocaleString()}</Chip>
               </div>
             </div>
-            {s.phone&&<a href={`https://wa.me/55${s.phone.replace(/\D/g,"")}`} target="_blank" rel="noreferrer" style={{background:"linear-gradient(135deg,#25D366,#128C7E)",border:"none",borderRadius:9,padding:"8px 12px",color:"#fff",fontSize:11,fontWeight:700,textDecoration:"none",fontFamily:"DM Sans"}}>💬 WA</a>}
+            {s.phone&&<a href={`https://wa.me/55${s.phone.replace(/\D/g,"")}?text=${encodeURIComponent("Olá "+s.name+"! Passando para confirmar sua presença no curso. Qualquer dúvida estamos à disposição! 🌿")}`} target="_blank" rel="noreferrer" style={{background:"linear-gradient(135deg,#25D366,#128C7E)",border:"none",borderRadius:9,padding:"8px 12px",color:"#fff",fontSize:11,fontWeight:700,textDecoration:"none",fontFamily:"DM Sans"}} title="Abrir WhatsApp com mensagem">💬 WA</a>}
           </div>
         </div>;
       })}
@@ -1224,9 +1227,28 @@ function PedagogicoPage({students,setStudents,courses}){
   const[pedItems,setPedItems]=useState({});
   const[trackedCourses,setTrackedCourses]=useState(()=>courses.reduce((a,c)=>({...a,[c.id]:c.type==="Curso"||c.type==="Estágio"}),{}));
   const[selCourse,setSelCourse]=useState(null);
+  const[savedFeedback,setSavedFeedback]=useState(false);
+
+  /* Carrega pedItems do banco ao selecionar aluno */
+  useEffect(()=>{
+    if(selSt){
+      const saved=(selSt.pedDocs||{})._checklist||{};
+      setPedItems(p=>({...p,[selSt.id]:saved}));
+    }
+  },[selSt?.id]);
 
   function toggleItem(stId,item){setPedItems(p=>{const cur=p[stId]||{};return {...p,[stId]:{...cur,[item]:!cur[item]}};})}
 
+  async function saveChecklist(){
+    if(!selSt)return;
+    const items=pedItems[selSt.id]||{};
+    const updated={...selSt,pedDocs:{...(selSt.pedDocs||{}),_checklist:items}};
+    setStudents(ss=>ss.map(s=>s.id!==selSt.id?s:updated));
+    setSelSt(updated);
+    await db.students.update(selSt.id,updated);
+    setSavedFeedback(true);
+    setTimeout(()=>setSavedFeedback(false),2000);
+  }
   function getChecklist(student){
     const items=new Set();
     student.courses.filter(cid=>trackedCourses[cid]).forEach(cid=>{
@@ -1290,10 +1312,10 @@ function PedagogicoPage({students,setStudents,courses}){
     </div>
     <div style={{display:"flex",flexDirection:"column",gap:9}}>
       {displayStudents.map((s,i)=>{
-        const ex=selSt===s.id;const p=pct(s);
+        const ex=selSt?.id===s.id;const p=pct(s);
         const trackedCids=s.courses.filter(cid=>trackedCourses[cid]);
         return <div key={s.id} style={{background:"#fff",borderRadius:14,border:`1.5px solid ${ex?"var(--bl)":"#E5EAF3"}`,overflow:"hidden",animation:`sr .3s ease ${i*.04}s both`,boxShadow:"var(--shadow)"}}>
-          <div onClick={()=>setSelSt(x=>x===s.id?null:s.id)} style={{display:"flex",alignItems:"center",gap:11,padding:"12px 15px",cursor:"pointer"}}>
+          <div onClick={()=>setSelSt(x=>x?.id===s.id?null:s)} style={{display:"flex",alignItems:"center",gap:11,padding:"12px 15px",cursor:"pointer"}}>
             <Av letter={s.name[0]} size={38} color="var(--pu)"/>
             <div style={{flex:1}}>
               <div style={{fontWeight:700,fontSize:13}}>{s.name}</div>
@@ -1309,6 +1331,13 @@ function PedagogicoPage({students,setStudents,courses}){
             <span style={{color:"var(--mu)",fontSize:11,marginLeft:3}}>{ex?"▲":"▼"}</span>
           </div>
           {ex&&<div style={{borderTop:"1.5px solid #E5EAF3",padding:"13px 15px",background:"#F7F9FC"}}>
+            {/* Botão Salvar checklist */}
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+              <button onClick={()=>saveChecklist()} style={{background:"linear-gradient(135deg,var(--pu),var(--bl))",border:"none",borderRadius:9,padding:"9px 18px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans",boxShadow:"0 2px 8px rgba(48,102,190,.25)"}}>
+                💾 Salvar progresso
+              </button>
+              {savedFeedback&&<span style={{fontSize:12,color:"var(--gn)",fontWeight:600,animation:"fadeIn .3s ease"}}>✓ Salvo!</span>}
+            </div>
             {trackedCids.map(cid=>{
               const c=courses.find(x=>x.id===cid);if(!c)return null;
               const courseChecklist=c.checklist||[];
@@ -1385,7 +1414,7 @@ function SocialPage({socialMetrics,setSocialMetrics}){
   const[editingMetric,setEditingMetric]=useState(null);
   const eP={date:"",time:"12:00",category:SOCIAL_CATS[0],caption:"",hashtags:"",imageUrl:"",status:"Programado"};
   const[form,setForm]=useState(eP);const fp=v=>setForm(p=>({...p,...v}));
-  const eM={month:new Date().toISOString().slice(0,7),totalViews:0,newFollowers:0,totalFollowers:0,interactions:0,reach:0,impressions:0};
+  const eM={month:new Date().toISOString().slice(0,7),totalViews:0,viewsNewFollowers:0,viewsFollowers:0,newFollowers:0,totalFollowers:0,interactions:0,interactionsNewFollowers:0,interactionsFollowers:0,reach:0,impressions:0};
   const[mForm,setMForm]=useState(eM);const fm=v=>setMForm(p=>({...p,...v}));
   const cy=calM.getFullYear(),cm=calM.getMonth();
   const fd=new Date(cy,cm,1).getDay(),dm=new Date(cy,cm+1,0).getDate();
@@ -1438,7 +1467,7 @@ function SocialPage({socialMetrics,setSocialMetrics}){
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             <Btn sz="sm" v="ghost" onClick={()=>{setForm({...p});setEditing(p);setShowForm(true);}}>✏️</Btn>
-            <button onClick={()=>{try{navigator.clipboard.writeText(p.caption+"\n\n"+p.hashtags);}catch{}window.open("https://www.instagram.com/","_blank");}} style={{background:"linear-gradient(135deg,#E1306C,#833AB4,#405DE6)",border:"none",borderRadius:7,padding:"6px 10px",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans"}}>📸 IG</button>
+            <button onClick={async()=>{try{await navigator.clipboard.writeText(p.caption+"\n\n"+p.hashtags);}catch{}if(p.imageUrl){try{const r=await fetch(p.imageUrl);const b=await r.blob();await navigator.clipboard.write([new ClipboardItem({[b.type]:b})]);}catch{try{await navigator.clipboard.writeText(p.imageUrl);}catch{}}}window.open("https://www.instagram.com/","_blank");}} style={{background:"linear-gradient(135deg,#E1306C,#833AB4,#405DE6)",border:"none",borderRadius:7,padding:"6px 10px",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans"}} title="Copia legenda + imagem e abre Instagram">📸 IG</button>
             <Btn sz="sm" v="danger" onClick={()=>setPosts(ps=>ps.filter(x=>x.id!==p.id))}>×</Btn>
           </div>
         </div>
@@ -1502,7 +1531,11 @@ function SocialPage({socialMetrics,setSocialMetrics}){
               </div>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
-              {[["👁 Views",m.totalViews,"var(--bl)"],["👥 Seguidores",m.totalFollowers,"var(--pu)"],["✨ Novos",m.newFollowers,"var(--gn)"],["💬 Interações",m.interactions,"var(--te)"],["📢 Alcance",m.reach,"var(--am)"],["🔢 Impressões",m.impressions,"var(--mu)"]].map(([l,v,c])=><div key={l} style={{background:"#F7F9FC",borderRadius:9,padding:"9px 11px",border:"1px solid var(--b)"}}>
+              {/* Views breakdown */}
+              <div style={{background:"#EEF4FF",borderRadius:9,padding:"9px 11px",border:"1px solid #C7D7F5",gridColumn:"1/-1"}}><div style={{fontSize:9,fontWeight:700,color:"var(--bl)",textTransform:"uppercase",marginBottom:4}}>👁 Views</div><div style={{display:"flex",gap:10,flexWrap:"wrap"}}><span style={{fontSize:11}}><b style={{color:"var(--bl)"}}>{(+m.totalViews).toLocaleString()}</b> <span style={{color:"var(--mu)",fontSize:10}}>geral</span></span><span style={{fontSize:11}}><b style={{color:"var(--gn)"}}>{(+m.viewsNewFollowers||0).toLocaleString()}</b> <span style={{color:"var(--mu)",fontSize:10}}>novos seg.</span></span><span style={{fontSize:11}}><b style={{color:"var(--pu)"}}>{(+m.viewsFollowers||0).toLocaleString()}</b> <span style={{color:"var(--mu)",fontSize:10}}>seguidores</span></span></div></div>
+              {/* Interactions breakdown */}
+              <div style={{background:"#E6FAF4",borderRadius:9,padding:"9px 11px",border:"1px solid #A7F3D0",gridColumn:"1/-1"}}><div style={{fontSize:9,fontWeight:700,color:"var(--te)",textTransform:"uppercase",marginBottom:4}}>💬 Interações</div><div style={{display:"flex",gap:10,flexWrap:"wrap"}}><span style={{fontSize:11}}><b style={{color:"var(--te)"}}>{(+m.interactions).toLocaleString()}</b> <span style={{color:"var(--mu)",fontSize:10}}>geral</span></span><span style={{fontSize:11}}><b style={{color:"var(--gn)"}}>{(+m.interactionsNewFollowers||0).toLocaleString()}</b> <span style={{color:"var(--mu)",fontSize:10}}>novos seg.</span></span><span style={{fontSize:11}}><b style={{color:"var(--pu)"}}>{(+m.interactionsFollowers||0).toLocaleString()}</b> <span style={{color:"var(--mu)",fontSize:10}}>seguidores</span></span></div></div>
+              {[["👥 Seguidores",m.totalFollowers,"var(--pu)"],["✨ Novos",m.newFollowers,"var(--gn)"],["📢 Alcance",m.reach,"var(--am)"],["🔢 Impressões",m.impressions,"var(--mu)"]].map(([l,v,c])=><div key={l} style={{background:"#F7F9FC",borderRadius:9,padding:"9px 11px",border:"1px solid var(--b)"}}>
                 <div style={{fontSize:10,color:"var(--mu)",marginBottom:3}}>{l}</div>
                 <div style={{fontFamily:"Playfair Display",fontSize:18,fontWeight:700,color:c}}>{(+v||0).toLocaleString()}</div>
               </div>)}
@@ -1513,10 +1546,17 @@ function SocialPage({socialMetrics,setSocialMetrics}){
       {showMetricForm&&<Modal title={editingMetric?"Editar Mês":"Adicionar Mês"} onClose={()=>{setShowMetricForm(false);setEditingMetric(null);}}>
         <Inp label="Mês *" value={mForm.month} onChange={e=>fm({month:e.target.value})} type="month"/>
         <div className="g2">
-          <Inp label="Total de Views" value={mForm.totalViews} onChange={e=>fm({totalViews:e.target.value})} type="number"/>
+          <div style={{gridColumn:"1/-1",fontSize:11,fontWeight:700,color:"var(--bl)",textTransform:"uppercase",letterSpacing:.5,marginTop:4}}>👁 Views</div>
+          <Inp label="Views Totais (Geral)" value={mForm.totalViews} onChange={e=>fm({totalViews:e.target.value})} type="number"/>
+          <Inp label="Views de Novos Seguidores" value={mForm.viewsNewFollowers} onChange={e=>fm({viewsNewFollowers:e.target.value})} type="number"/>
+          <Inp label="Views de Seguidores" value={mForm.viewsFollowers} onChange={e=>fm({viewsFollowers:e.target.value})} type="number"/>
+          <div style={{gridColumn:"1/-1",fontSize:11,fontWeight:700,color:"var(--te)",textTransform:"uppercase",letterSpacing:.5,marginTop:4}}>💬 Interações</div>
+          <Inp label="Interações Totais (Geral)" value={mForm.interactions} onChange={e=>fm({interactions:e.target.value})} type="number"/>
+          <Inp label="Interações Novos Seguidores" value={mForm.interactionsNewFollowers} onChange={e=>fm({interactionsNewFollowers:e.target.value})} type="number"/>
+          <Inp label="Interações Seguidores" value={mForm.interactionsFollowers} onChange={e=>fm({interactionsFollowers:e.target.value})} type="number"/>
+          <div style={{gridColumn:"1/-1",fontSize:11,fontWeight:700,color:"var(--mu)",textTransform:"uppercase",letterSpacing:.5,marginTop:4}}>📊 Alcance</div>
           <Inp label="Total Seguidores" value={mForm.totalFollowers} onChange={e=>fm({totalFollowers:e.target.value})} type="number"/>
           <Inp label="Novos Seguidores" value={mForm.newFollowers} onChange={e=>fm({newFollowers:e.target.value})} type="number"/>
-          <Inp label="Interações Totais" value={mForm.interactions} onChange={e=>fm({interactions:e.target.value})} type="number"/>
           <Inp label="Alcance" value={mForm.reach} onChange={e=>fm({reach:e.target.value})} type="number"/>
           <Inp label="Impressões" value={mForm.impressions} onChange={e=>fm({impressions:e.target.value})} type="number"/>
         </div>
@@ -1533,7 +1573,7 @@ function SocialPage({socialMetrics,setSocialMetrics}){
       <Inp label="URL da Imagem (opcional)" value={form.imageUrl} onChange={e=>fp({imageUrl:e.target.value})} placeholder="https://..."/>
       {form.imageUrl&&<img src={form.imageUrl} alt="preview" style={{width:"100%",maxHeight:180,objectFit:"cover",borderRadius:10,marginBottom:13}} onError={e=>e.target.style.display="none"}/>}
       <div style={{display:"flex",gap:9,marginBottom:13}}>
-        {form.caption&&<button onClick={()=>{navigator.clipboard.writeText(form.caption+"\n\n"+form.hashtags);window.open("https://www.instagram.com/","_blank");}} style={{flex:1,background:"linear-gradient(135deg,#E1306C,#833AB4,#405DE6)",border:"none",borderRadius:9,padding:"10px 0",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans"}}>📸 Abrir Instagram + Copiar</button>}
+        {form.caption&&<button onClick={async()=>{try{await navigator.clipboard.writeText(form.caption+"\n\n"+form.hashtags);}catch{}if(form.imageUrl){try{const r=await fetch(form.imageUrl);const b=await r.blob();await navigator.clipboard.write([new ClipboardItem({[b.type]:b})]);}catch{try{await navigator.clipboard.writeText(form.imageUrl);}catch{}}}window.open("https://www.instagram.com/","_blank");}} style={{flex:1,background:"linear-gradient(135deg,#E1306C,#833AB4,#405DE6)",border:"none",borderRadius:9,padding:"10px 0",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans"}} title="Copia legenda + imagem e abre Instagram">📸 Copiar Legenda + Imagem e Abrir</button>}
       </div>
       <div style={{display:"flex",gap:8}}><Btn style={{flex:1}} onClick={savePost}>{editing?"Salvar":"Programar"}</Btn>{editing&&<Btn v="danger" onClick={()=>{setPosts(ps=>ps.filter(p=>p.id!==editing.id));setShowForm(false);setEditing(null);}}>Excluir</Btn>}</div>
     </Modal>}
@@ -1608,6 +1648,7 @@ const NAV=[
   {id:"ped",      icon:"🎓",lbl:"Pedagógico"},
   {id:"social",   icon:"📸",lbl:"Social Media"},
   {id:"perms",    icon:"🔐",lbl:"Permissões"},
+  {id:"users",    icon:"👥",lbl:"Usuários",adminOnly:true},
 ];
 const BOT=[{id:"dash",icon:"⬡",lbl:"Início"},{id:"crm",icon:"◈",lbl:"CRM"},{id:"cursos",icon:"❋",lbl:"Cursos"},{id:"fin",icon:"◆",lbl:"Financ."},{id:"__m__",icon:"☰",lbl:"Mais"}];
 
@@ -1622,7 +1663,7 @@ function SDDesk({active,setActive,students,courses,checks}){
       </div>
     </div>
     <nav style={{display:"flex",flexDirection:"column",gap:1,flex:1,overflowY:"auto"}}>
-      {NAV.map(n=><button key={n.id} onClick={()=>setActive(n.id)} title={col?n.lbl:""} style={{display:"flex",alignItems:"center",gap:10,padding:col?"11px 0":"11px 12px",justifyContent:col?"center":"flex-start",borderRadius:9,border:"none",cursor:"pointer",background:active===n.id?"#EEF4FF":"transparent",color:active===n.id?"var(--bl)":"var(--mu)",fontFamily:"DM Sans",fontSize:13,fontWeight:active===n.id?700:400,borderLeft:`3px solid ${active===n.id?"var(--bl)":"transparent"}`,textAlign:"left",transition:"all .15s"}}>
+      {visibleNav.map(n=><button key={n.id} onClick={()=>setActive(n.id)} title={col?n.lbl:""} style={{display:"flex",alignItems:"center",gap:10,padding:col?"11px 0":"11px 12px",justifyContent:col?"center":"flex-start",borderRadius:9,border:"none",cursor:"pointer",background:active===n.id?"#EEF4FF":"transparent",color:active===n.id?"var(--bl)":"var(--mu)",fontFamily:"DM Sans",fontSize:13,fontWeight:active===n.id?700:400,borderLeft:`3px solid ${active===n.id?"var(--bl)":"transparent"}`,textAlign:"left",transition:"all .15s"}}>
         <span style={{fontSize:14,flexShrink:0}}>{n.icon}</span>{!col&&n.lbl}
       </button>)}
     </nav>
@@ -1642,7 +1683,7 @@ function SDMob({active,setActive,open,onClose,students,courses,checks}){
         <div style={{display:"flex",alignItems:"center",gap:8}}><NotifBell students={students} courses={courses} checks={checks}/><button onClick={onClose} style={{background:"#F7F9FC",border:"1.5px solid #DDE3EE",borderRadius:7,width:30,height:30,color:"var(--mu)",cursor:"pointer",fontSize:16,flexShrink:0}}>×</button></div>
       </div>
       <nav style={{display:"flex",flexDirection:"column",gap:1}}>
-        {NAV.map(n=><button key={n.id} onClick={()=>{setActive(n.id);onClose();}} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 12px",borderRadius:9,border:"none",cursor:"pointer",background:active===n.id?"#EEF4FF":"transparent",color:active===n.id?"var(--bl)":"var(--mu)",fontFamily:"DM Sans",fontSize:13,fontWeight:active===n.id?700:400,borderLeft:`3px solid ${active===n.id?"var(--bl)":"transparent"}`,textAlign:"left"}}>
+        {visibleNav.map(n=><button key={n.id} onClick={()=>{setActive(n.id);onClose();}} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 12px",borderRadius:9,border:"none",cursor:"pointer",background:active===n.id?"#EEF4FF":"transparent",color:active===n.id?"var(--bl)":"var(--mu)",fontFamily:"DM Sans",fontSize:13,fontWeight:active===n.id?700:400,borderLeft:`3px solid ${active===n.id?"var(--bl)":"transparent"}`,textAlign:"left"}}>
           <span style={{fontSize:14}}>{n.icon}</span>{n.lbl}
         </button>)}
       </nav>
@@ -1691,6 +1732,10 @@ export default function IOR(){
     return ()=>subscription.unsubscribe();
   },[]);
 
+  /* ── Perfil do usuário logado */
+  const userRole = user?.user_metadata?.role || 'Proprietária';
+  const isAdmin  = userRole === 'Proprietária';
+
   /* ── Carregamento de dados quando autenticado */
   useEffect(()=>{
     if(!user){ return; }
@@ -1721,7 +1766,9 @@ export default function IOR(){
     ped:     <PedagogicoPage students={students} setStudents={setStudents} courses={courses} apiStudents={API.students}/>,
     social:  <SocialPage socialMetrics={socialMetrics} setSocialMetrics={setSocialMetrics}/>,
     perms:   <PermissoesPage/>,
+    users:   isAdmin ? <UsersPage /> : <div style={{padding:24,color:"var(--rd)"}}>Acesso restrito à Proprietária.</div>,
   };
+  const visibleNav = NAV.filter(n => !n.adminOnly || isAdmin);
 
   if(loading) return <div style={{height:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"var(--bg)",fontFamily:"DM Sans",gap:14}}>
     <div style={{width:44,height:44,border:"3px solid var(--bl)",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
@@ -1754,4 +1801,123 @@ export default function IOR(){
       <BotNav active={page} setActive={setPage} onMenu={()=>setDrawer(true)}/>
     </div>
   </>;
+}
+
+/* ══════════════════════════════════════════════════
+   GESTÃO DE USUÁRIOS — só Proprietária acessa
+   Chama a Edge Function manage-users no Supabase
+══════════════════════════════════════════════════ */
+function UsersPage(){
+  const EDGE = "https://odegosowuketirxdgllb.supabase.co/functions/v1/manage-users";
+  const[users,setUsers]=useState([]);
+  const[loading,setLoading]=useState(true);
+  const[showF,setShowF]=useState(false);
+  const[editing,setEditing]=useState(null);
+  const[err,setErr]=useState("");
+  const[saving,setSaving]=useState(false);
+  const eF={name:"",email:"",password:"",role:ROLES[1]};
+  const[form,setForm]=useState(eF);
+  const ff=v=>setForm(p=>({...p,...v}));
+
+  async function callEdge(method,body){
+    const{data:{session}}=await supabase.auth.getSession();
+    const res=await fetch(EDGE,{
+      method,
+      headers:{"Content-Type":"application/json","Authorization":`Bearer ${session?.access_token}`},
+      ...(body?{body:JSON.stringify(body)}:{})
+    });
+    return res.json();
+  }
+
+  async function load(){
+    setLoading(true);setErr("");
+    const data=await callEdge("GET");
+    if(data.error)setErr(data.error);else setUsers(data||[]);
+    setLoading(false);
+  }
+  useEffect(()=>{load();},[]);
+
+  async function save(){
+    if(!form.name.trim()||!form.email.trim())return;
+    if(!editing&&!form.password.trim()){setErr("Senha obrigatória para novo usuário");return;}
+    setSaving(true);setErr("");
+    let data;
+    if(editing){
+      data=await callEdge("PATCH",{userId:editing.id,action:"update",name:form.name,role:form.role,...(form.password?{password:form.password}:{})});
+    } else {
+      data=await callEdge("POST",{email:form.email,password:form.password,name:form.name,role:form.role});
+    }
+    if(data.error){setErr(data.error);}
+    else{setShowF(false);setEditing(null);setForm(eF);await load();}
+    setSaving(false);
+  }
+
+  async function toggleActive(u){
+    setErr("");
+    const data=await callEdge("PATCH",{userId:u.id,action:u.active?"deactivate":"reactivate"});
+    if(data.error)setErr(data.error);else await load();
+  }
+
+  async function removeUser(u){
+    if(!window.confirm(`Excluir ${u.name}? Esta ação não pode ser desfeita.`))return;
+    const data=await callEdge("DELETE",{userId:u.id});
+    if(data.error)setErr(data.error);else await load();
+  }
+
+  const ROLE_C={"Proprietária":"var(--bl)","Financeiro":"var(--gn)","Secretaria":"var(--te)","Professor(a)":"var(--pu)","Assistente":"var(--mu)"};
+
+  return <div style={{animation:"up .4s ease"}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+      <div>
+        <h1 style={{fontFamily:"Playfair Display",fontSize:24,fontWeight:700}}>Usuários</h1>
+        <p style={{color:"var(--mu)",fontSize:11,marginTop:2}}>{users.length} conta{users.length!==1?"s":""} · gerenciado pela Proprietária</p>
+      </div>
+      <Btn sz="sm" onClick={()=>{setForm(eF);setEditing(null);setErr("");setShowF(true);}}>+ Novo usuário</Btn>
+    </div>
+
+    {err&&<div style={{background:"#FEF2F2",border:"1.5px solid #FECACA",borderRadius:10,padding:"10px 14px",fontSize:13,color:"var(--rd)",marginBottom:14,fontWeight:600}}>⚠ {err}</div>}
+
+    {loading?<div style={{textAlign:"center",padding:"40px 0",color:"var(--mu)",fontSize:13}}>Carregando usuários…</div>:(
+      <div style={{display:"flex",flexDirection:"column",gap:9}}>
+        {users.map((u,i)=><div key={u.id} style={{background:"#fff",borderRadius:14,padding:"14px 16px",border:`1.5px solid ${u.active?"#E5EAF3":"#FECACA"}`,display:"flex",alignItems:"center",gap:12,boxShadow:"var(--shadow)",animation:`sr .3s ease ${i*.05}s both`,opacity:u.active?1:.6}}>
+          <Av letter={u.name[0]} size={40} color={ROLE_C[u.role]||"var(--mu)"}/>
+          <div style={{flex:1}}>
+            <div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}>
+              <span style={{fontWeight:700,fontSize:13}}>{u.name}</span>
+              <Chip color={ROLE_C[u.role]||"var(--mu)"} sm>{u.role}</Chip>
+              {!u.active&&<Chip color="var(--rd)" sm>Desativado</Chip>}
+            </div>
+            <div style={{fontSize:11,color:"var(--mu)",marginTop:2}}>{u.email}</div>
+            <div style={{fontSize:10,color:"var(--mu2)",marginTop:2}}>
+              {u.lastSignIn?`Último acesso: ${new Date(u.lastSignIn).toLocaleDateString("pt-BR")}`:"Nunca acessou"}
+              {" · "}Criado: {new Date(u.createdAt).toLocaleDateString("pt-BR")}
+            </div>
+          </div>
+          <div style={{display:"flex",gap:6}}>
+            <Btn sz="sm" v="ghost" onClick={()=>{setForm({name:u.name,email:u.email,password:"",role:u.role});setEditing(u);setErr("");setShowF(true);}}>✏️</Btn>
+            <button onClick={()=>toggleActive(u)} style={{background:u.active?"#FEF2F2":"#F0FDF4",border:`1.5px solid ${u.active?"#FECACA":"#BBF7D0"}`,borderRadius:9,padding:"5px 10px",fontSize:11,color:u.active?"var(--rd)":"var(--gn)",cursor:"pointer",fontFamily:"DM Sans",fontWeight:600}}>
+              {u.active?"Desativar":"Reativar"}
+            </button>
+            <button onClick={()=>removeUser(u)} style={{background:"transparent",border:"none",color:"#DDE3EE",cursor:"pointer",fontSize:16,padding:"0 4px"}} title="Excluir">×</button>
+          </div>
+        </div>)}
+        {!users.length&&<div style={{textAlign:"center",padding:"32px 0",color:"var(--mu)",fontSize:12}}>Nenhum usuário encontrado.</div>}
+      </div>
+    )}
+
+    {showF&&<Modal title={editing?"Editar Usuário":"Novo Usuário"} sub={editing?.email} onClose={()=>{setShowF(false);setEditing(null);setErr("");}}>
+      {err&&<div style={{background:"#FEF2F2",border:"1.5px solid #FECACA",borderRadius:9,padding:"8px 12px",fontSize:12,color:"var(--rd)",marginBottom:11,fontWeight:600}}>⚠ {err}</div>}
+      <Inp label="Nome completo *" value={form.name} onChange={e=>ff({name:e.target.value})} placeholder="Ex: Ana Lima"/>
+      {!editing&&<Inp label="E-mail *" value={form.email} onChange={e=>ff({email:e.target.value})} type="email" placeholder="ana@iorreflexologia.com"/>}
+      <Inp label={editing?"Nova senha (deixe em branco para manter)":"Senha *"} value={form.password} onChange={e=>ff({password:e.target.value})} type="password" placeholder="Mínimo 8 caracteres"/>
+      <Lbl>Perfil de acesso</Lbl>
+      <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:14}}>
+        {ROLES.map(r=><button key={r} onClick={()=>ff({role:r})} style={{background:form.role===r?`${ROLE_C[r]||"var(--mu)"}15`:"#F7F9FC",border:`1.5px solid ${form.role===r?ROLE_C[r]||"var(--mu)":"#DDE3EE"}`,color:form.role===r?ROLE_C[r]||"var(--mu)":"var(--mu)",borderRadius:99,padding:"5px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{r}</button>)}
+      </div>
+      <div style={{background:"#EEF4FF",borderRadius:9,padding:"8px 12px",fontSize:11,color:"var(--bl)",marginBottom:14}}>
+        ℹ As permissões de cada perfil são configuradas na aba <strong>Permissões</strong>.
+      </div>
+      <Btn style={{width:"100%"}} onClick={save} disabled={saving}>{saving?"Salvando…":editing?"Salvar alterações":"Criar usuário"}</Btn>
+    </Modal>}
+  </div>;
 }

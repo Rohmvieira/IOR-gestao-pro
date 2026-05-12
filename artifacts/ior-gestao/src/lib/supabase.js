@@ -19,7 +19,9 @@ export const fromDB = {
   check:   c => c && ({ ...c, createdAt: c.created_at }),
   template:t => t && t,
   metric:  m => m && ({ ...m, totalViews: m.total_views, newFollowers: m.new_followers,
-    totalFollowers: m.total_followers, interactions: m.interactions }),
+    totalFollowers: m.total_followers, interactions: m.interactions,
+    viewsNewFollowers: m.views_new_followers||0, viewsFollowers: m.views_followers||0,
+    interactionsNewFollowers: m.interactions_new_followers||0, interactionsFollowers: m.interactions_followers||0 }),
 };
 
 export const toDB = {
@@ -47,7 +49,9 @@ export const toDB = {
   template:t => ({ name: t.name, text: t.text }),
   metric:  m => ({ month: m.month, total_views: +m.totalViews||0, new_followers: +m.newFollowers||0,
     total_followers: +m.totalFollowers||0, interactions: +m.interactions||0,
-    reach: +m.reach||0, impressions: +m.impressions||0 }),
+    reach: +m.reach||0, impressions: +m.impressions||0,
+    views_new_followers: +m.viewsNewFollowers||0, views_followers: +m.viewsFollowers||0,
+    interactions_new_followers: +m.interactionsNewFollowers||0, interactions_followers: +m.interactionsFollowers||0 }),
 };
 
 /* ══════════════════════════════════════════════════
