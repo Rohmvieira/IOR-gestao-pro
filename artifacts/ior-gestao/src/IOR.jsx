@@ -1,6 +1,38 @@
 import { useState, useRef, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Legend } from "recharts";
 import { supabase, db } from "./lib/supabase.js";
+import * as XLSX from "xlsx";
+
+/* ══════════════════════════════════════════════════
+   EXPORTAÇÃO EXCEL — helpers reutilizáveis
+══════════════════════════════════════════════════ */
+function exportXLSX(sheets, filename) {
+  const wb = XLSX.utils.book_new();
+  sheets.forEach(({ name, rows }) => {
+    const ws = XLSX.utils.json_to_sheet(rows);
+    // Ajusta largura das colunas automaticamente
+    const cols = Object.keys(rows[0] || {}).map(k => ({
+      wch: Math.max(k.length, ...rows.map(r => String(r[k] || "").length)) + 2
+    }));
+    ws["!cols"] = cols;
+    XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
+  });
+  XLSX.writeFile(wb, `${filename}_${new Date().toLocaleDateString("pt-BR").replace(/\//g,"-")}.xlsx`);
+}
+
+function BtnExport({ onClick, label = "📊 Exportar Excel" }) {
+  return <button onClick={onClick} style={{
+    display:"flex", alignItems:"center", gap:6,
+    background:"#F0FDF4", border:"1.5px solid #BBF7D0",
+    borderRadius:9, padding:"7px 13px", color:"#166534",
+    fontSize:12, fontWeight:700, cursor:"pointer",
+    fontFamily:"DM Sans", whiteSpace:"nowrap",
+    boxShadow:"0 1px 4px rgba(0,0,0,.06)", transition:"all .15s",
+  }}
+    onMouseEnter={e=>e.currentTarget.style.background="#DCFCE7"}
+    onMouseLeave={e=>e.currentTarget.style.background="#F0FDF4"}
+  >{label}</button>;
+}
 
 /* ══════════════════════════════════════════════════
    GLOBAL STYLES
@@ -557,6 +589,25 @@ function CRMPage({leads,setLeads,courses,students,setStudents,sales,setSales}){
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
       <div><h1 style={{fontFamily:"Playfair Display",fontSize:24,fontWeight:700}}>CRM · Leads</h1><p style={{color:"var(--mu)",fontSize:11,marginTop:2}}>{leads.length} leads · {leads.filter(l=>l.stage==="Fechado").length} fechados</p></div>
       <div style={{display:"flex",gap:7}}>
+        <BtnExport label="📊 Exportar" onClick={()=>{
+          const rows=leads.map(l=>({
+            "Nome":l.name,"E-mail":l.email,"Telefone":l.phone,
+            "Estágio":l.stage,"Interesse":l.type,
+            "Curso":courses.find(c=>c.id===l.courseId)?.name||"",
+            "Valor (R$)":(+(l.value||0)/100).toFixed(2),
+            "Origem":l.source,"Pagamento":l.payment,"Data":l.date,
+            "Motivo perda":l.lossReason,"Notas":l.notes,
+          }));
+          const porEstagio=STAGES.map(st=>({
+            "Estágio":st,
+            "Qtd":leads.filter(l=>l.stage===st).length,
+            "Valor potencial (R$)":(leads.filter(l=>l.stage===st).reduce((a,l)=>a+(+l.value||0),0)/100).toFixed(2),
+          }));
+          exportXLSX([
+            {name:"Todos os Leads",rows:rows.length?rows:[{"Info":"Nenhum lead"}]},
+            {name:"Por Estágio",rows:porEstagio},
+          ],"IOR_Leads");
+        }}/>
         <Btn v="ghost" sz="sm" onClick={()=>setView(v=>v==="kanban"?"list":"kanban")}>{view==="kanban"?"☰ Lista":"⊞ Kanban"}</Btn>
         <Btn sz="sm" onClick={()=>{setForm(eL);setEditing(null);setShowF(true);}}>+ Novo</Btn>
       </div>
@@ -761,7 +812,32 @@ function StudentsPage({students,setStudents,courses,sales,setSales,templates}){
   return <div style={{animation:"up .4s ease"}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
       <div><h1 style={{fontFamily:"Playfair Display",fontSize:24,fontWeight:700}}>Alunos</h1><p style={{color:"var(--mu)",fontSize:11,marginTop:2}}>{students.length} cadastrados · {students.filter(isOverdue).length} pendentes · {students.filter(isPaid).length} quitados</p></div>
-      <Btn sz="sm" onClick={()=>{setForm(e);setEditingSt(null);setShowF(true);}}>+ Cadastrar</Btn>
+      <div style={{display:"flex",gap:8}}>
+        <BtnExport onClick={()=>{
+          const rows=students.map(s=>({
+            "Nome":s.name,"E-mail":s.email,"Telefone":s.phone,"Cidade":s.city,
+            "Desde":s.since,"Tipo pgto":s.pType,"Método":s.pMethod,
+            "Valor total (R$)":(+(s.totalValue||0)/100).toFixed(2),
+            "Parcelas":s.installments||0,"Quitado":s.paid?"Sim":"Não",
+            "Cursos":(s.courses||[]).map(cid=>{const c=courses.find(x=>x.id===cid);return c?.name||cid;}).join(", "),
+            "Notas":s.notes,
+          }));
+          const byCourse=[];
+          courses.forEach(c=>{
+            students.filter(s=>(s.courses||[]).includes(c.id)).forEach(s=>byCourse.push({
+              "Curso":c.name,"Tipo":c.type,"Data":c.date,"Aluno":s.name,
+              "E-mail":s.email,"Telefone":s.phone,
+              "Matrícula em":(s.enrollmentDates||{})[c.id]||"",
+              "Pgto quitado":s.paid?"Sim":"Não",
+            }));
+          });
+          exportXLSX([
+            {name:"Todos os Alunos",rows:rows.length?rows:[{"Info":"Nenhum aluno"}]},
+            {name:"Alunos por Curso",rows:byCourse.length?byCourse:[{"Info":"Sem matrículas"}]},
+          ],"IOR_Alunos");
+        }}/>
+        <Btn sz="sm" onClick={()=>{setForm(e);setEditingSt(null);setShowF(true);}}>+ Cadastrar</Btn>
+      </div>
     </div>
     <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍  Nome, e-mail, CPF, telefone..."
       style={{width:"100%",background:"#fff",border:"1.5px solid #DDE3EE",borderRadius:11,padding:"9px 14px",color:"var(--tx)",fontSize:13,outline:"none",fontFamily:"DM Sans",marginBottom:10,boxShadow:"var(--shadow)"}}/>
@@ -934,7 +1010,38 @@ function CoursesPage({courses,setCourses,students,setStudents}){
   return <div style={{animation:"up .4s ease"}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
       <div><h1 style={{fontFamily:"Playfair Display",fontSize:24,fontWeight:700}}>Cursos & Calendário</h1><p style={{color:"var(--mu)",fontSize:11}}>{courses.length} eventos</p></div>
-      <div style={{display:"flex",gap:7}}><Btn v="ghost" sz="sm" onClick={()=>setTab(t=>t==="lista"?"cal":"lista")}>{tab==="lista"?"📅 Cal":"☰ Lista"}</Btn><Btn sz="sm" onClick={()=>{setForm(e);setSel(null);setShowF(true);}}>+ Novo</Btn></div>
+      <div style={{display:"flex",gap:7}}>
+        <BtnExport onClick={()=>{
+          const rows=courses.map(c=>({
+            "Nome":c.name,"Tipo":c.type,"Início":c.date,"Fim":c.end,
+            "Modalidade":c.modality,"Valor (R$)":(+(c.value||0)/100).toFixed(2),
+            "Vagas":c.capacity,"Inscritos":(c.enrolled||[]).length,
+            "Lista espera":(c.waitlist||[]).length,"Instrutor":c.instructor,
+          }));
+          const byCourse=[];
+          courses.forEach(c=>{
+            (c.enrolled||[]).forEach(stId=>{
+              const s=students.find(x=>x.id===stId);
+              byCourse.push({"Curso":c.name,"Tipo":c.type,"Data":c.date,
+                "Aluno":s?.name||stId,"E-mail":s?.email||"","Telefone":s?.phone||"",
+                "Matrícula em":(s?.enrollmentDates||{})[c.id]||"",
+                "Pgto quitado":s?.paid?"Sim":"Não"});
+            });
+          });
+          const waitlist=[];
+          courses.forEach(c=>(c.waitlist||[]).forEach(stId=>{
+            const s=students.find(x=>x.id===stId);
+            waitlist.push({"Curso":c.name,"Aluno":s?.name||stId,"E-mail":s?.email||"","Telefone":s?.phone||""});
+          }));
+          exportXLSX([
+            {name:"Cursos",rows:rows.length?rows:[{"Info":"Nenhum curso"}]},
+            {name:"Alunos por Curso",rows:byCourse.length?byCourse:[{"Info":"Sem inscritos"}]},
+            {name:"Lista de Espera",rows:waitlist.length?waitlist:[{"Info":"Nenhuma lista de espera"}]},
+          ],"IOR_Cursos");
+        }}/>
+        <Btn v="ghost" sz="sm" onClick={()=>setTab(t=>t==="lista"?"cal":"lista")}>{tab==="lista"?"📅 Cal":"☰ Lista"}</Btn>
+        <Btn sz="sm" onClick={()=>{setForm(e);setSel(null);setShowF(true);}}>+ Novo</Btn>
+      </div>
     </div>
     {tab==="lista"?<div style={{display:"flex",flexDirection:"column",gap:9}}>
       {[...courses].sort((a,b)=>a.date.localeCompare(b.date)).map((c,i)=>{
@@ -1057,7 +1164,36 @@ function FinancialPage({sales,setSales,courses,students}){
   return <div style={{animation:"up .4s ease"}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
       <h1 style={{fontFamily:"Playfair Display",fontSize:24,fontWeight:700}}>Financeiro</h1>
-      <Btn sz="sm" onClick={()=>setShowAdd(true)}>+ Registrar Venda</Btn>
+      <div style={{display:"flex",gap:8}}>
+        <BtnExport onClick={()=>{
+          const rows = sales.map(s=>{
+            const st=students.find(x=>x.id===s.studentId);
+            return {
+              "Data": s.date,
+              "Descrição": s.desc,
+              "Tipo": s.type,
+              "Valor (R$)": (+(s.value||0)/100).toFixed(2),
+              "Pagamento": s.payment,
+              "Aluno": st?.name||"—",
+              "Notas": s.notes,
+            };
+          });
+
+          // Resumo por tipo
+          const tipos = [...new Set(sales.map(s=>s.type))];
+          const resumo = tipos.map(t=>({
+            "Tipo": t,
+            "Qtd vendas": sales.filter(s=>s.type===t).length,
+            "Total (R$)": (sales.filter(s=>s.type===t).reduce((a,s)=>a+(+s.value||0),0)/100).toFixed(2),
+          }));
+
+          exportXLSX([
+            { name: "Todas as Vendas", rows: rows.length?rows:[{"Info":"Nenhuma venda"}] },
+            { name: "Resumo por Tipo", rows: resumo.length?resumo:[{"Info":"Sem dados"}] },
+          ], "IOR_Financeiro");
+        }}/>
+        <Btn sz="sm" onClick={()=>setShowAdd(true)}>+ Registrar Venda</Btn>
+      </div>
     </div>
     <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:12}}>
       {STYPES.map(t=><div key={t} style={{background:"#fff",borderRadius:14,padding:"12px 15px",flex:1,minWidth:110,border:"1px solid var(--b)",boxShadow:"var(--shadow)"}}>
