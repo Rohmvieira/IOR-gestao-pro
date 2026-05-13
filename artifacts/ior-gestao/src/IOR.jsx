@@ -16,7 +16,7 @@ async function exportXLSX(sheets, filename) {
     ws["!cols"] = cols;
     XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
   });
-  XLSX.writeFile(wb, `${filename}_${new Date().toLocaleDateString("pt-BR").replace(/\/g,"-")}.xlsx`);
+  XLSX.writeFile(wb, `${filename}_${new Date().toLocaleDateString("pt-BR").replace(/\//g,"-")}.xlsx`);
 }
 
 function BtnExport({ onClick, label = "📊 Exportar Excel" }) {
@@ -1792,8 +1792,6 @@ export default function IOR({ user, role = "Assistente", isAdmin = false, isDev 
     <button onClick={()=>window.location.reload()} style={{background:"var(--bl)",color:"#fff",border:"none",borderRadius:9,padding:"10px 24px",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"DM Sans"}}>Tentar novamente</button>
   </div>;
 
-  const userRole = user?.app_metadata?.role || user?.user_metadata?.role || "Assistente";
-  const isAdmin  = userRole === "Proprietária";
 
   const pages={
     dash:    <DashPage     leads={leads} students={students} courses={courses} sales={sales}/>,
@@ -1811,7 +1809,6 @@ export default function IOR({ user, role = "Assistente", isAdmin = false, isDev 
     devpanel: isDev ? <DevPage/> : null,
     users:   isAdmin ? <UsersPage /> : <div style={{padding:24,color:"var(--rd)",fontFamily:"DM Sans"}}>Acesso restrito à Proprietária.</div>,
   };
-  const isDev = userRole === "Desenvolvedor";
   const visibleNav = NAV.filter(n => {
     if(n.devOnly) return isDev;
     if(n.adminOnly) return isAdmin || isDev;
