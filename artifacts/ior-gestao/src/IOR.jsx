@@ -94,7 +94,7 @@ const PAYS     = ["PIX","Cartão Crédito","Cartão Débito","Boleto","Transfer�
 const LOSSES   = ["Preço alto","Sem tempo","Escolheu concorrente","Sem resposta","Desistiu"];
 const TEAM     = ["Ana Lima","Carla Reis","Coord. Pesquisa","Secretaria","Financeiro","Você"];
 const MODULES  = ["Dashboard","CRM Leads","CRM Produtos","Alunos","Cursos","Financeiro","Checklist","WA Lembretes","Pedagógico","Permissões","Social Media"];
-const ROLES    = ["Proprietária","Financeiro","Secretaria","Professor(a)","Assistente"];
+const ROLES    = ["Proprietária","Financeiro","Secretaria","Professor(a)","Assistente","Desenvolvedor"];
 const MOPT     = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 const MNS      = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const SOCIAL_CATS = ["Reflexologia","Bem-estar","Curso/Workshop","Depoimento","Dica","Evento","Bastidores"];
@@ -1917,9 +1917,16 @@ export default function IOR(){
     ped:     <PedagogicoPage students={students} setStudents={setStudents} courses={courses}/>,
     social:  <SocialPage socialMetrics={socialMetrics} setSocialMetrics={setSocialMetrics}/>,
     perms:   <PermissoesPage/>,
+    suporte: isAdmin||isDev ? <SupportPage user={user}/> : null,
+    devpanel: isDev ? <DevPage/> : null,
     users:   isAdmin ? <UsersPage /> : <div style={{padding:24,color:"var(--rd)",fontFamily:"DM Sans"}}>Acesso restrito à Proprietária.</div>,
   };
-  const visibleNav = NAV.filter(n => !n.adminOnly || isAdmin);
+  const isDev = userRole === "Desenvolvedor";
+  const visibleNav = NAV.filter(n => {
+    if(n.devOnly) return isDev;
+    if(n.adminOnly) return isAdmin || isDev;
+    return true;
+  });
 
   return <>
     <GS/>
@@ -1945,6 +1952,186 @@ export default function IOR(){
    GESTÃO DE USUÁRIOS — só Proprietária acessa
    Chama a Edge Function manage-users no Supabase
 ══════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════
+   SUPORTE — Proprietária envia pedidos ao Dev
+══════════════════════════════════════════════════ */
+function SupportPage({user}){
+  const[tickets,setTickets]=useState([]);
+  const[loading,setLoading]=useState(true);
+  const[showF,setShowF]=useState(false);
+  const[saving,setSaving]=useState(false);
+  const[success,setSuccess]=useState("");
+  const e0={type:"Dúvida",title:"",message:""};
+  const[form,setForm]=useState(e0);
+  const ff=v=>setForm(p=>({...p,...v}));
+  const TYPE_C={"Bug":"var(--rd)","Feature":"var(--bl)","Dúvida":"var(--mu)","Urgente":"var(--am)"};
+  const STATUS_C={"Aberto":"var(--am)","Em andamento":"var(--bl)","Resolvido":"var(--gn)"};
+
+  useEffect(()=>{
+    supabase.from("support_tickets").select("*").order("created_at",{ascending:false})
+      .then(({data})=>{setTickets(data||[]);setLoading(false);});
+  },[]);
+
+  async function send(){
+    if(!form.title.trim()||!form.message.trim())return;
+    setSaving(true);
+    const{data,error}=await supabase.from("support_tickets").insert({
+      tenant_id:"default",
+      from_name:user?.user_metadata?.name||user?.email||"Proprietária",
+      from_email:user?.email||"",
+      type:form.type,title:form.title,message:form.message,
+    }).select().single();
+    if(!error){setTickets(t=>[data,...t]);setSuccess("✓ Enviado ao desenvolvedor!");setTimeout(()=>setSuccess(""),3000);setShowF(false);setForm(e0);}
+    setSaving(false);
+  }
+
+  return <div style={{animation:"up .4s ease"}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+      <div>
+        <h1 style={{fontFamily:"Playfair Display",fontSize:24,fontWeight:700}}>Suporte ao Desenvolvedor</h1>
+        <p style={{color:"var(--mu)",fontSize:11,marginTop:2}}>Envie bugs, pedidos de funcionalidade ou dúvidas diretamente ao dev</p>
+      </div>
+      <Btn sz="sm" onClick={()=>setShowF(true)}>+ Novo pedido</Btn>
+    </div>
+
+    {success&&<div style={{background:"#F0FDF4",border:"1.5px solid #BBF7D0",borderRadius:10,padding:"10px 14px",fontSize:13,color:"var(--gn)",marginBottom:14,fontWeight:600}}>{success}</div>}
+
+    {loading?<div style={{textAlign:"center",padding:"40px 0",color:"var(--mu)"}}>Carregando…</div>:(
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {tickets.map((t,i)=><div key={t.id} style={{background:"#fff",borderRadius:14,padding:"14px 16px",border:"1.5px solid #E5EAF3",boxShadow:"var(--shadow)",animation:`sr .3s ease ${i*.05}s both`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,flexWrap:"wrap"}}>
+            <div style={{flex:1}}>
+              <div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap",marginBottom:4}}>
+                <Chip color={TYPE_C[t.type]||"var(--mu)"} sm>{t.type}</Chip>
+                <Chip color={STATUS_C[t.status]||"var(--mu)"} sm>{t.status}</Chip>
+                <span style={{fontWeight:700,fontSize:14}}>{t.title}</span>
+              </div>
+              <p style={{fontSize:13,color:"var(--mu)",margin:"4px 0"}}>{t.message}</p>
+              {t.dev_response&&<div style={{background:"#EEF4FF",borderRadius:9,padding:"8px 12px",marginTop:8,fontSize:13,color:"var(--bl)",borderLeft:"3px solid var(--bl)"}}>
+                <div style={{fontSize:10,fontWeight:700,color:"var(--bl)",marginBottom:3}}>💬 RESPOSTA DO DEV</div>
+                {t.dev_response}
+              </div>}
+            </div>
+            <div style={{fontSize:10,color:"var(--mu2)",flexShrink:0}}>{new Date(t.created_at).toLocaleDateString("pt-BR")}</div>
+          </div>
+        </div>)}
+        {!tickets.length&&<div style={{textAlign:"center",padding:"40px 0",color:"var(--mu)",fontSize:13}}>
+          Nenhum ticket ainda. Clique em "+ Novo pedido" para falar com o dev! 🛠
+        </div>}
+      </div>
+    )}
+
+    {showF&&<Modal title="Novo Pedido" onClose={()=>{setShowF(false);setForm(e0);}}>
+      <Lbl>Tipo</Lbl>
+      <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
+        {["Bug","Feature","Dúvida","Urgente"].map(t=><button key={t} onClick={()=>ff({type:t})} style={{background:form.type===t?`${TYPE_C[t]}22`:"#F7F9FC",border:`1.5px solid ${form.type===t?TYPE_C[t]:"#DDE3EE"}`,color:form.type===t?TYPE_C[t]:"var(--mu)",borderRadius:99,padding:"5px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{t}</button>)}
+      </div>
+      <Inp label="Título *" value={form.title} onChange={e=>ff({title:e.target.value})} placeholder="Ex: Botão de exportar não funciona"/>
+      <div style={{marginBottom:14}}>
+        <Lbl>Mensagem *</Lbl>
+        <textarea value={form.message} onChange={e=>ff({message:e.target.value})} placeholder="Descreva com detalhes o que aconteceu ou o que precisa…" style={{width:"100%",minHeight:100,background:"#F7F9FC",border:"1.5px solid #DDE3EE",borderRadius:10,padding:"10px 12px",fontSize:13,fontFamily:"DM Sans",resize:"vertical",boxSizing:"border-box",color:"var(--tx)"}}/>
+      </div>
+      <Btn style={{width:"100%"}} onClick={send} disabled={saving}>{saving?"Enviando…":"💬 Enviar ao desenvolvedor"}</Btn>
+    </Modal>}
+  </div>;
+}
+
+/* ══════════════════════════════════════════════════
+   PAINEL DO DESENVOLVEDOR — só Rodrigo acessa
+══════════════════════════════════════════════════ */
+function DevPage(){
+  const[tickets,setTickets]=useState([]);
+  const[loading,setLoading]=useState(true);
+  const[responding,setResponding]=useState(null);
+  const[resp,setResp]=useState("");
+  const[filter,setFilter]=useState("Todos");
+  const TYPE_C={"Bug":"var(--rd)","Feature":"var(--bl)","Dúvida":"var(--mu)","Urgente":"var(--am)"};
+  const STATUS_C={"Aberto":"var(--am)","Em andamento":"var(--bl)","Resolvido":"var(--gn)"};
+
+  useEffect(()=>{
+    // Dev vê todos os tickets de todos os tenants via service role
+    supabase.from("support_tickets").select("*").order("created_at",{ascending:false})
+      .then(({data})=>{setTickets(data||[]);setLoading(false);});
+  },[]);
+
+  async function respond(ticket){
+    if(!resp.trim())return;
+    const{data}=await supabase.from("support_tickets").update({
+      dev_response:resp,status:"Resolvido",responded_at:new Date().toISOString()
+    }).eq("id",ticket.id).select().single();
+    if(data){setTickets(ts=>ts.map(t=>t.id===ticket.id?data:t));}
+    setResponding(null);setResp("");
+  }
+
+  async function setStatus(ticket,status){
+    const{data}=await supabase.from("support_tickets").update({status}).eq("id",ticket.id).select().single();
+    if(data)setTickets(ts=>ts.map(t=>t.id===ticket.id?data:t));
+  }
+
+  const filtered=filter==="Todos"?tickets:tickets.filter(t=>t.status===filter);
+  const counts={Aberto:tickets.filter(t=>t.status==="Aberto").length,"Em andamento":tickets.filter(t=>t.status==="Em andamento").length,Resolvido:tickets.filter(t=>t.status==="Resolvido").length};
+
+  return <div style={{animation:"up .4s ease"}}>
+    <div style={{marginBottom:16}}>
+      <h1 style={{fontFamily:"Playfair Display",fontSize:24,fontWeight:700}}>🛠 Painel do Desenvolvedor</h1>
+      <p style={{color:"var(--mu)",fontSize:11,marginTop:2}}>Pedidos, bugs e solicitações de todos os clientes</p>
+    </div>
+
+    {/* Resumo */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:16}}>
+      {[["Aberto","var(--am)","🔴"],["Em andamento","var(--bl)","🔵"],["Resolvido","var(--gn)","✅"]].map(([s,c,ic])=>(
+        <div key={s} style={{background:"#fff",borderRadius:12,padding:"12px 14px",border:`1.5px solid ${c}22`,cursor:"pointer",boxShadow:"var(--shadow)"}} onClick={()=>setFilter(filter===s?"Todos":s)}>
+          <div style={{fontSize:18}}>{ic}</div>
+          <div style={{fontWeight:700,fontSize:20,color:c}}>{counts[s]||0}</div>
+          <div style={{fontSize:11,color:"var(--mu)"}}>{s}</div>
+        </div>
+      ))}
+    </div>
+
+    {/* Lista */}
+    {loading?<div style={{textAlign:"center",padding:"40px 0",color:"var(--mu)"}}>Carregando…</div>:(
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {filtered.map((t,i)=><div key={t.id} style={{background:"#fff",borderRadius:14,padding:"14px 16px",border:`1.5px solid ${t.status==="Aberto"?"#FDE68A":t.status==="Resolvido"?"#BBF7D0":"#C7D7F5"}`,boxShadow:"var(--shadow)",animation:`sr .3s ease ${i*.04}s both`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,flexWrap:"wrap"}}>
+            <div style={{flex:1}}>
+              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:4}}>
+                <Chip color={TYPE_C[t.type]||"var(--mu)"} sm>{t.type}</Chip>
+                <Chip color={STATUS_C[t.status]||"var(--mu)"} sm>{t.status}</Chip>
+                <span style={{fontWeight:700,fontSize:14}}>{t.title}</span>
+              </div>
+              <div style={{fontSize:11,color:"var(--mu)",marginBottom:4}}>
+                👤 {t.from_name} · {t.from_email} · tenant: {t.tenant_id}
+              </div>
+              <p style={{fontSize:13,color:"var(--tx)",margin:"4px 0",lineHeight:1.5}}>{t.message}</p>
+              {t.dev_response&&<div style={{background:"#EEF4FF",borderRadius:9,padding:"8px 12px",marginTop:8,fontSize:13,color:"var(--bl)",borderLeft:"3px solid var(--bl)"}}>
+                <div style={{fontSize:10,fontWeight:700,marginBottom:2}}>Sua resposta:</div>
+                {t.dev_response}
+              </div>}
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:5,alignItems:"flex-end",flexShrink:0}}>
+              <div style={{fontSize:10,color:"var(--mu2)"}}>{new Date(t.created_at).toLocaleDateString("pt-BR")}</div>
+              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                {t.status!=="Em andamento"&&<button onClick={()=>setStatus(t,"Em andamento")} style={{background:"#EEF4FF",border:"1.5px solid #C7D7F5",borderRadius:7,padding:"4px 8px",fontSize:10,color:"var(--bl)",cursor:"pointer",fontWeight:600}}>Em andamento</button>}
+                {t.status!=="Resolvido"&&<button onClick={()=>setStatus(t,"Resolvido")} style={{background:"#F0FDF4",border:"1.5px solid #BBF7D0",borderRadius:7,padding:"4px 8px",fontSize:10,color:"var(--gn)",cursor:"pointer",fontWeight:600}}>Resolver</button>}
+                <Btn sz="sm" onClick={()=>{setResponding(t);setResp(t.dev_response||"");}}>💬 Responder</Btn>
+              </div>
+            </div>
+          </div>
+
+          {responding?.id===t.id&&<div style={{marginTop:12,borderTop:"1px solid var(--b)",paddingTop:10}}>
+            <textarea value={resp} onChange={e=>setResp(e.target.value)} placeholder="Escreva sua resposta para o cliente…" style={{width:"100%",minHeight:80,background:"#F7F9FC",border:"1.5px solid var(--bl)",borderRadius:9,padding:"8px 12px",fontSize:13,fontFamily:"DM Sans",resize:"vertical",boxSizing:"border-box",color:"var(--tx)",marginBottom:8}}/>
+            <div style={{display:"flex",gap:8}}>
+              <Btn onClick={()=>respond(t)}>Enviar resposta</Btn>
+              <Btn v="ghost" onClick={()=>setResponding(null)}>Cancelar</Btn>
+            </div>
+          </div>}
+        </div>)}
+        {!filtered.length&&<div style={{textAlign:"center",padding:"32px 0",color:"var(--mu)",fontSize:13}}>Nenhum ticket {filter!=="Todos"?`com status "${filter}"`:"ainda"}.</div>}
+      </div>
+    )}
+  </div>;
+}
+
 function UsersPage(){
   const EDGE = "https://odegosowuketirxdgllb.supabase.co/functions/v1/manage-users";
   const[users,setUsers]=useState([]);
