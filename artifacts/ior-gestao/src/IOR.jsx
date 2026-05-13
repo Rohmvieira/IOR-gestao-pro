@@ -1788,7 +1788,7 @@ const NAV=[
 ];
 const BOT=[{id:"dash",icon:"⬡",lbl:"Início"},{id:"crm",icon:"◈",lbl:"CRM"},{id:"cursos",icon:"❋",lbl:"Cursos"},{id:"fin",icon:"◆",lbl:"Financ."},{id:"__m__",icon:"☰",lbl:"Mais"}];
 
-function SDDesk({active,setActive,students,courses,checks}){
+function SDDesk({active,setActive,students,courses,checks,nav=NAV}){
   const[col,setCol]=useState(false);
   return <div className={`sd ${col?"c":"e"}`}>
     <div style={{display:"flex",alignItems:"center",justifyContent:col?"center":"space-between",marginBottom:26}}>
@@ -1799,7 +1799,7 @@ function SDDesk({active,setActive,students,courses,checks}){
       </div>
     </div>
     <nav style={{display:"flex",flexDirection:"column",gap:1,flex:1,overflowY:"auto"}}>
-      {visibleNav.map(n=><button key={n.id} onClick={()=>setActive(n.id)} title={col?n.lbl:""} style={{display:"flex",alignItems:"center",gap:10,padding:col?"11px 0":"11px 12px",justifyContent:col?"center":"flex-start",borderRadius:9,border:"none",cursor:"pointer",background:active===n.id?"#EEF4FF":"transparent",color:active===n.id?"var(--bl)":"var(--mu)",fontFamily:"DM Sans",fontSize:13,fontWeight:active===n.id?700:400,borderLeft:`3px solid ${active===n.id?"var(--bl)":"transparent"}`,textAlign:"left",transition:"all .15s"}}>
+      {nav.map(n=><button key={n.id} onClick={()=>setActive(n.id)} title={col?n.lbl:""} style={{display:"flex",alignItems:"center",gap:10,padding:col?"11px 0":"11px 12px",justifyContent:col?"center":"flex-start",borderRadius:9,border:"none",cursor:"pointer",background:active===n.id?"#EEF4FF":"transparent",color:active===n.id?"var(--bl)":"var(--mu)",fontFamily:"DM Sans",fontSize:13,fontWeight:active===n.id?700:400,borderLeft:`3px solid ${active===n.id?"var(--bl)":"transparent"}`,textAlign:"left",transition:"all .15s"}}>
         <span style={{fontSize:14,flexShrink:0}}>{n.icon}</span>{!col&&n.lbl}
       </button>)}
     </nav>
@@ -1810,7 +1810,7 @@ function SDDesk({active,setActive,students,courses,checks}){
   </div>;
 }
 
-function SDMob({active,setActive,open,onClose,students,courses,checks}){
+function SDMob({active,setActive,open,onClose,students,courses,checks,nav=NAV}){
   return <>
     <div className={`ov ${open?"op":""}`} onClick={onClose}/>
     <div className={`dr ${open?"op":""}`}>
@@ -1819,7 +1819,7 @@ function SDMob({active,setActive,open,onClose,students,courses,checks}){
         <div style={{display:"flex",alignItems:"center",gap:8}}><NotifBell students={students} courses={courses} checks={checks}/><button onClick={onClose} style={{background:"#F7F9FC",border:"1.5px solid #DDE3EE",borderRadius:7,width:30,height:30,color:"var(--mu)",cursor:"pointer",fontSize:16,flexShrink:0}}>×</button></div>
       </div>
       <nav style={{display:"flex",flexDirection:"column",gap:1}}>
-        {visibleNav.map(n=><button key={n.id} onClick={()=>{setActive(n.id);onClose();}} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 12px",borderRadius:9,border:"none",cursor:"pointer",background:active===n.id?"#EEF4FF":"transparent",color:active===n.id?"var(--bl)":"var(--mu)",fontFamily:"DM Sans",fontSize:13,fontWeight:active===n.id?700:400,borderLeft:`3px solid ${active===n.id?"var(--bl)":"transparent"}`,textAlign:"left"}}>
+        {nav.map(n=><button key={n.id} onClick={()=>{setActive(n.id);onClose();}} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 12px",borderRadius:9,border:"none",cursor:"pointer",background:active===n.id?"#EEF4FF":"transparent",color:active===n.id?"var(--bl)":"var(--mu)",fontFamily:"DM Sans",fontSize:13,fontWeight:active===n.id?700:400,borderLeft:`3px solid ${active===n.id?"var(--bl)":"transparent"}`,textAlign:"left"}}>
           <span style={{fontSize:14}}>{n.icon}</span>{n.lbl}
         </button>)}
       </nav>
@@ -1827,7 +1827,7 @@ function SDMob({active,setActive,open,onClose,students,courses,checks}){
   </>;
 }
 
-function BotNav({active,setActive,onMenu}){
+function BotNav({active,setActive,onMenu,nav=NAV}){
   return <nav className="bn">
     {BOT.map(n=><button key={n.id} className={`bni ${active===n.id?"a":""}`} onClick={()=>n.id==="__m__"?onMenu():setActive(n.id)}>
       <span style={{fontSize:17}}>{n.icon}</span><span style={{fontSize:9,fontWeight:600,letterSpacing:.3}}>{n.lbl}</span>
@@ -1924,8 +1924,8 @@ export default function IOR(){
   return <>
     <GS/>
     <div style={{display:"flex",height:"100vh",overflow:"hidden",background:"var(--bg)"}}>
-      <SDDesk active={page} setActive={setPage} students={students} courses={courses} checks={checks}/>
-      <SDMob  active={page} setActive={setPage} open={drawer} onClose={()=>setDrawer(false)} students={students} courses={courses} checks={checks}/>
+      <SDDesk active={page} setActive={setPage} students={students} courses={courses} checks={checks} nav={visibleNav}/>
+      <SDMob  active={page} setActive={setPage} open={drawer} onClose={()=>setDrawer(false)} students={students} courses={courses} checks={checks} nav={visibleNav}/>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
         <div className="mob" style={{flexShrink:0,height:48,background:"#fff",borderBottom:"1px solid var(--b)",alignItems:"center",justifyContent:"space-between",padding:"0 16px",boxShadow:"0 2px 8px rgba(30,40,80,.07)"}}>
           <button onClick={()=>setDrawer(true)} style={{background:"transparent",border:"none",color:"var(--mu)",fontSize:20,cursor:"pointer"}}>☰</button>
