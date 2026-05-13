@@ -37,7 +37,6 @@ export default defineConfig(async () => ({
           vendor: ["react", "react-dom"],
           supabase: ["@supabase/supabase-js"],
           charts: ["recharts"],
-          xlsx: ["xlsx"],
         },
       },
     },

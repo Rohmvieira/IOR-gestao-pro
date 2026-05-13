@@ -1759,31 +1759,12 @@ export default function IOR({ user, role = "Assistente", isAdmin = false, isDev 
   const[drawer,setDrawer]     = useState(false);
   const[loading,setLoading]   = useState(true);
   const[loadErr,setLoadErr]   = useState(null);
-  const[user,setUser]         = useState(null);
   const curr=NAV.find(n=>n.id===page);
-
-  /* ── Autenticação: escuta mudanças de sessão */
-  useEffect(()=>{
-    supabase.auth.getSession().then(({data:{session}})=>{
-      setUser(session?.user||null);
-      if(!session) setLoading(false);
-    });
-    const {data:{subscription}} = supabase.auth.onAuthStateChange((_e,session)=>{
-      setUser(session?.user||null);
-      if(!session){ setLoading(false); setCourses([]); setStudents([]); setLeads([]); setProducts([]); setSales([]); setChecks([]); setTemplates([]); }
-    });
-    return ()=>subscription.unsubscribe();
-  },[]);
-
-  /* ── Perfil do usuário logado */
-
 
   /* ── Carregamento de dados quando autenticado */
   useEffect(()=>{
-    if(!user){ return; }
+    if(!user?.id){ return; }
     setLoading(true);
-    // Garante que o role está atualizado no JWT via refresh
-    supabase.auth.refreshSession().catch(()=>{});
     Promise.all([
       db.courses.list(), db.students.list(), db.leads.list(),
       db.products.list(), db.sales.list(), db.checks.list(),
@@ -1794,7 +1775,7 @@ export default function IOR({ user, role = "Assistente", isAdmin = false, isDev 
       setTemplates(tp||[]); setSocialMetrics(mt||[]);
       setLoading(false);
     }).catch(err=>{ setLoadErr(err.message); setLoading(false); });
-  },[user]);
+  },[user?.id]);
 
   /* ── Tela de login — gerenciado pelo App.tsx */
 
