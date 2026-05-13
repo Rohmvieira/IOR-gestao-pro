@@ -1890,26 +1890,6 @@ export default function IOR(){
 
   /* ── Tela de login — gerenciado pelo App.tsx */
 
-  const pages={
-    dash:    <DashPage     leads={leads} students={students} courses={courses} sales={sales}/>,
-    crm:     <CRMPage      leads={leads} setLeads={setLeads} courses={courses} students={students} setStudents={setStudents} sales={sales} setSales={setSales}/>,
-    produtos:<ProductsPage products={products} setProducts={setProducts} sales={sales} setSales={setSales}/>,
-    alunos:  <StudentsPage students={students} setStudents={setStudents} courses={courses} sales={sales} setSales={setSales} templates={templates}/>,
-    cursos:  <CoursesPage  courses={courses} setCourses={setCourses} students={students} setStudents={setStudents}/>,
-    fin:     <FinancialPage sales={sales} setSales={setSales} courses={courses} students={students}/>,
-    check:   <ChecklistPage checks={checks} setChecks={setChecks}/>,
-    wa:      <WhatsAppPage  leads={leads} students={students} courses={courses} templates={templates} setTemplates={setTemplates}/>,
-    ped:     <PedagogicoPage students={students} setStudents={setStudents} courses={courses}/>,
-    social:  <SocialPage socialMetrics={socialMetrics} setSocialMetrics={setSocialMetrics}/>,
-    perms:   <PermissoesPage/>,
-    users:   <UsersPage/>,
-  };
-    social:  <SocialPage socialMetrics={socialMetrics} setSocialMetrics={setSocialMetrics}/>,
-    perms:   <PermissoesPage/>,
-    users:   isAdmin ? <UsersPage /> : <div style={{padding:24,color:"var(--rd)"}}>Acesso restrito à Proprietária.</div>,
-  };
-  const visibleNav = NAV.filter(n => !n.adminOnly || isAdmin);
-
   if(loading) return <div style={{height:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"var(--bg)",fontFamily:"DM Sans",gap:14}}>
     <div style={{width:44,height:44,border:"3px solid var(--bl)",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
     <div style={{fontFamily:"Playfair Display",fontSize:18,color:"var(--bl)"}}>Carregando dados…</div>
@@ -1922,6 +1902,25 @@ export default function IOR(){
     <div style={{fontSize:13,color:"var(--mu)",maxWidth:380,textAlign:"center"}}>{loadErr}</div>
     <button onClick={()=>window.location.reload()} style={{background:"var(--bl)",color:"#fff",border:"none",borderRadius:9,padding:"10px 24px",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"DM Sans"}}>Tentar novamente</button>
   </div>;
+
+  const userRole = user?.app_metadata?.role || user?.user_metadata?.role || "Assistente";
+  const isAdmin  = userRole === "Proprietária";
+
+  const pages={
+    dash:    <DashPage     leads={leads} students={students} courses={courses} sales={sales}/>,
+    crm:     <CRMPage      leads={leads} setLeads={setLeads} courses={courses} students={students} setStudents={setStudents} sales={sales} setSales={setSales}/>,
+    produtos:<ProductsPage products={products} setProducts={setProducts} sales={sales} setSales={setSales}/>,
+    alunos:  <StudentsPage students={students} setStudents={setStudents} courses={courses} sales={sales} setSales={setSales} templates={templates}/>,
+    cursos:  <CoursesPage  courses={courses} setCourses={setCourses} students={students} setStudents={setStudents}/>,
+    fin:     <FinancialPage sales={sales} setSales={setSales} courses={courses} students={students}/>,
+    check:   <ChecklistPage checks={checks} setChecks={setChecks}/>,
+    wa:      <WhatsAppPage  leads={leads} students={students} courses={courses} templates={templates} setTemplates={setTemplates}/>,
+    ped:     <PedagogicoPage students={students} setStudents={setStudents} courses={courses}/>,
+    social:  <SocialPage socialMetrics={socialMetrics} setSocialMetrics={setSocialMetrics}/>,
+    perms:   <PermissoesPage/>,
+    users:   isAdmin ? <UsersPage /> : <div style={{padding:24,color:"var(--rd)",fontFamily:"DM Sans"}}>Acesso restrito à Proprietária.</div>,
+  };
+  const visibleNav = NAV.filter(n => !n.adminOnly || isAdmin);
 
   return <>
     <GS/>
@@ -1938,7 +1937,7 @@ export default function IOR(){
           {pages[page]}
         </main>
       </div>
-      <BotNav active={page} setActive={setPage} onMenu={()=>setDrawer(true)}/>
+      <BotNav active={page} setActive={setPage} onMenu={()=>setDrawer(true)} nav={visibleNav}/>
     </div>
   </>;
 }
