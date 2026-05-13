@@ -1,27 +1,27 @@
 import { useState, useRef, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Legend } from "recharts";
 import { supabase, db } from "./lib/supabase.js";
-import * as XLSX from "xlsx";
 
 /* ══════════════════════════════════════════════════
    EXPORTAÇÃO EXCEL — helpers reutilizáveis
 ══════════════════════════════════════════════════ */
-function exportXLSX(sheets, filename) {
+async function exportXLSX(sheets, filename) {
+  const XLSX = await import("xlsx");
   const wb = XLSX.utils.book_new();
   sheets.forEach(({ name, rows }) => {
     const ws = XLSX.utils.json_to_sheet(rows);
-    // Ajusta largura das colunas automaticamente
     const cols = Object.keys(rows[0] || {}).map(k => ({
       wch: Math.max(k.length, ...rows.map(r => String(r[k] || "").length)) + 2
     }));
     ws["!cols"] = cols;
     XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
   });
-  XLSX.writeFile(wb, `${filename}_${new Date().toLocaleDateString("pt-BR").replace(/\//g,"-")}.xlsx`);
+  XLSX.writeFile(wb, `${filename}_${new Date().toLocaleDateString("pt-BR").replace(/\/g,"-")}.xlsx`);
 }
 
 function BtnExport({ onClick, label = "📊 Exportar Excel" }) {
-  return <button onClick={onClick} style={{
+  const [exp, setExp] = useState(false);
+  return <button onClick={async()=>{setExp(true);try{await onClick();}finally{setExp(false);}}} disabled={exp} style={{
     display:"flex", alignItems:"center", gap:6,
     background:"#F0FDF4", border:"1.5px solid #BBF7D0",
     borderRadius:9, padding:"7px 13px", color:"#166534",
@@ -116,101 +116,6 @@ const IPERMS_INIT = {
    SEED DATA — REMOVIDO (dados ficam no banco)
    Use o endpoint POST /api/seed para dados de demo
 ══════════════════════════════════════════════════ */
-const SEED_COURSES = [
-  {id:101,name:"Reflexologia Podal – Módulo I",  type:"Curso",    date:"2025-03-15",end:"2025-03-16",modality:"Presencial",value:980, capacity:12,enrolled:[201,202,203],waitlist:[204],instructor:"Profa. Ana Lima",  desc:"Fundamentos da reflexologia podal pelo Método IOR.",
-   checklist:["Apostila recebida","Material entregue","Avaliação teórica","Estágio concluído"],
-   checklistDeadlines:{"Material entregue":"2025-04-15","Avaliação teórica":"2025-05-01","Estágio concluído":"2025-06-01"}},
-  {id:102,name:"Workshop Reflexologia Facial",   type:"Workshop", date:"2025-04-05",end:"2025-04-05",modality:"Presencial",value:450, capacity:8, enrolled:[202,205],waitlist:[],instructor:"Profa. Carla Reis",desc:"Técnicas reflexológicas aplicadas ao rosto.",
-   checklist:["Material entregue"],checklistDeadlines:{}},
-  {id:103,name:"Reflexologia Podal – Módulo II", type:"Curso",    date:"2025-05-10",end:"2025-05-11",modality:"Online",    value:1200,capacity:20,enrolled:[201],waitlist:[203,206],instructor:"Profa. Ana Lima",desc:"Aprofundamento: patologias e protocolos avançados.",
-   checklist:["Apostila recebida","Avaliação teórica","Relatório entregue"],
-   checklistDeadlines:{"Avaliação teórica":"2025-06-15","Relatório entregue":"2025-07-01"}},
-  {id:104,name:"Estágio Clínico – Turma A",      type:"Estágio",  date:"2025-04-12",end:"2025-05-12",modality:"Presencial",value:600, capacity:6, enrolled:[205,206],waitlist:[],instructor:"Profa. Ana Lima",desc:"Prática supervisionada em clínica real.",
-   checklist:["Material entregue","Estágio concluído","Relatório entregue"],
-   checklistDeadlines:{"Estágio concluído":"2025-05-12","Relatório entregue":"2025-05-20"}},
-  {id:105,name:"Ambulatório de Pesquisa",         type:"Ambulatório",date:"2025-04-20",end:"2025-09-20",modality:"Presencial",value:0,capacity:10,enrolled:[202,203,204],waitlist:[],instructor:"Coord. Pesquisa",desc:"Programa de pesquisa aplicada.",
-   checklist:[],checklistDeadlines:{}},
-  {id:106,name:"Mapeamento Reflexológico",        type:"Workshop", date:"2025-06-07",end:"2025-06-08",modality:"Híbrido",  value:650, capacity:15,enrolled:[],waitlist:[201,202,205],instructor:"Profa. Carla Reis",desc:"Workshop intensivo de leitura dos pontos reflexos.",
-   checklist:["Material entregue"],checklistDeadlines:{}},
-];
-
-const SEED_STUDENTS = [
-  {id:201,name:"Adriana Moura",   email:"adriana@mail.com", phone:"11991110001",cpf:"111.111.111-11",city:"São Paulo",    since:"2024-01",courses:[101,103],contract:true, contractFile:null,pType:"parcelado",pMethod:"Cartão Crédito",totalValue:3180,installments:12,instValue:265,payDay:5, startMonth:"2024-01",paidMonths:[0,1,2,3,4,5,6,7,8,9],paid:false,certificate:[],interests:[102],notes:"Pontual",enrollmentDates:{101:"2024-01-10",103:"2024-02-15"},pedDocs:{}},
-  {id:202,name:"Beatriz Nunes",   email:"beatriz@mail.com", phone:"11992220002",cpf:"222.222.222-22",city:"Campinas",     since:"2024-03",courses:[101,102,105],contract:true, contractFile:null,pType:"parcelado",pMethod:"PIX",           totalValue:1430,installments:6, instValue:238,payDay:10,startMonth:"2024-03",paidMonths:[0,1,2,3,4,5],paid:false,certificate:[101],interests:[],notes:"",enrollmentDates:{101:"2024-03-01",102:"2024-03-05",105:"2024-04-20"},pedDocs:{}},
-  {id:203,name:"Carla Esteves",   email:"carla@mail.com",   phone:"11993330003",cpf:"333.333.333-33",city:"São Paulo",    since:"2023-09",courses:[101,105],contract:false,contractFile:null,pType:"avista",   pMethod:"PIX",           totalValue:2600,installments:0, instValue:0,  payDay:null,startMonth:"",         paidMonths:[],paid:true, certificate:[],interests:[103],notes:"Sem contrato",enrollmentDates:{101:"2023-09-10",105:"2024-04-20"},pedDocs:{}},
-  {id:204,name:"Diana Fonseca",   email:"diana@mail.com",   phone:"21994440004",cpf:"444.444.444-44",city:"Rio de Janeiro",since:"2024-06",courses:[],contract:false,contractFile:null,pType:"parcelado",pMethod:"Boleto",        totalValue:980, installments:3, instValue:327,payDay:15,startMonth:"2024-06",paidMonths:[0,1],paid:false,certificate:[],interests:[101],notes:"1 parcela em aberto",enrollmentDates:{},pedDocs:{}},
-  {id:205,name:"Elaine Guimarães",email:"elaine@mail.com",  phone:"11995550005",cpf:"555.555.555-55",city:"Guarulhos",    since:"2024-02",courses:[102,104],contract:true, contractFile:null,pType:"avista",   pMethod:"Boleto",        totalValue:1050,installments:0, instValue:0,  payDay:null,startMonth:"",         paidMonths:[],paid:true, certificate:[102],interests:[],notes:"",enrollmentDates:{102:"2024-02-10",104:"2024-04-12"},pedDocs:{}},
-  {id:206,name:"Fernanda Rocha",  email:"fernanda@mail.com",phone:"11996660006",cpf:"666.666.666-66",city:"Sorocaba",     since:"2024-08",courses:[104],contract:true, contractFile:null,pType:"parcelado",pMethod:"Boleto",        totalValue:600, installments:3, instValue:200,payDay:20,startMonth:"2024-08",paidMonths:[0],paid:false,certificate:[],interests:[],notes:"",enrollmentDates:{104:"2024-08-01"},pedDocs:{}},
-];
-
-const SEED_LEADS = [
-  {id:301,name:"Juliana Prado",  phone:"11990011111",email:"ju@mail.com", courseId:101,stage:"Negociação",source:"Instagram",payment:"PIX",lossReason:"",value:980, type:"Curso",  notes:"Pediu desconto",date:"2025-01-20"},
-  {id:302,name:"Mariana Costa",  phone:"11990022222",email:"ma@mail.com", courseId:102,stage:"Leads Frios",source:"WhatsApp",payment:"",lossReason:"",value:450,type:"Workshop",notes:"",date:"2025-01-18"},
-  {id:303,name:"Renata Silveira",phone:"11990044444",email:"re@mail.com", courseId:106,stage:"Espera",    source:"Site",      payment:"",lossReason:"",value:650,type:"Workshop",notes:"Aguarda turma",date:"2025-01-22"},
-  {id:304,name:"Sandra Lima",    phone:"11990055555",email:"sa@mail.com", courseId:102,stage:"Perdido",   source:"Google",    payment:"",lossReason:"Preço alto",value:450,type:"Workshop",notes:"Achou caro",date:"2025-01-10"},
-  {id:305,name:"Tatiana Morais", phone:"31990066666",email:"ta@mail.com", courseId:101,stage:"Negociação",source:"Evento",    payment:"PIX",lossReason:"",value:980,type:"Curso",notes:"Conheceu no evento",date:"2025-01-25"},
-  {id:306,name:"Vanessa Porto",  phone:"11990077777",email:"va@mail.com", courseId:103,stage:"Leads Frios",source:"Instagram",payment:"",lossReason:"",value:1200,type:"Curso",notes:"",date:"2025-01-29"},
-];
-
-const SEED_PRODUCTS = [
-  {id:401,product:"Kit Básico Reflexologia",   client:"Adriana Moura",   qty:1,value:280,notes:"Inclui manual",stage:"Embalar",    date:"2025-01-26",documents:[]},
-  {id:402,product:"Livro IOR Método",          client:"Beatriz Nunes",   qty:2,value:150,notes:"",            stage:"Pronto",     date:"2025-01-25",documents:[]},
-  {id:403,product:"Bastão de Madeira Set",     client:"Carla Esteves",   qty:1,value:95, notes:"SEDEX",        stage:"Enviado",    date:"2025-01-20",documents:[]},
-  {id:404,product:"Kit Completo Profissional", client:"Diana Fonseca",   qty:1,value:580,notes:"NF pendente",  stage:"Nota Fiscal",date:"2025-01-28",documents:[]},
-];
-
-const SEED_SALES = [
-  {id:501,date:"2024-07-10",studentId:203,desc:"Reflexologia Podal – Módulo I",value:980,payment:"PIX",type:"Curso",notes:""},
-  {id:502,date:"2024-07-15",studentId:null,desc:"Kit Básico Reflexologia",value:280,payment:"PIX",type:"Produto",notes:""},
-  {id:503,date:"2024-07-20",studentId:null,desc:"Atendimento Avulso",value:180,payment:"PIX",type:"Atendimento",notes:""},
-  {id:504,date:"2024-08-05",studentId:205,desc:"Workshop Reflexologia Facial",value:450,payment:"Boleto",type:"Workshop",notes:""},
-  {id:505,date:"2024-08-12",studentId:null,desc:"Reflexologia Podal – Módulo I",value:980,payment:"PIX",type:"Curso",notes:""},
-  {id:506,date:"2024-08-20",studentId:null,desc:"Kit Completo Profissional",value:580,payment:"Cartão Crédito",type:"Produto",notes:""},
-  {id:507,date:"2024-08-25",studentId:null,desc:"Atendimento Avulso",value:180,payment:"PIX",type:"Atendimento",notes:""},
-  {id:508,date:"2024-09-03",studentId:null,desc:"Reflexologia Podal – Módulo I",value:980,payment:"PIX",type:"Curso",notes:""},
-  {id:509,date:"2024-09-10",studentId:null,desc:"Estágio Clínico – Turma A",value:600,payment:"Boleto",type:"Curso",notes:""},
-  {id:510,date:"2024-09-18",studentId:null,desc:"Apostila Digital+Impressa",value:270,payment:"PIX",type:"Produto",notes:""},
-  {id:511,date:"2024-10-05",studentId:null,desc:"Reflexologia Podal – Módulo II",value:1200,payment:"Cartão Crédito",type:"Curso",notes:""},
-  {id:512,date:"2024-10-12",studentId:null,desc:"Workshop Reflexologia Facial",value:450,payment:"PIX",type:"Workshop",notes:""},
-  {id:513,date:"2024-10-20",studentId:null,desc:"Reflexologia Podal – Módulo I",value:980,payment:"PIX",type:"Curso",notes:""},
-  {id:514,date:"2024-10-25",studentId:null,desc:"Atendimento Avulso",value:360,payment:"PIX",type:"Atendimento",notes:""},
-  {id:515,date:"2024-10-28",studentId:null,desc:"Kit Básico Reflexologia",value:280,payment:"PIX",type:"Produto",notes:""},
-  {id:516,date:"2024-11-04",studentId:null,desc:"Reflexologia Podal – Módulo I",value:980,payment:"PIX",type:"Curso",notes:""},
-  {id:517,date:"2024-11-08",studentId:null,desc:"Reflexologia Podal – Módulo II",value:1200,payment:"Cartão Crédito",type:"Curso",notes:""},
-  {id:518,date:"2024-11-14",studentId:null,desc:"Estágio Clínico – Turma A",value:600,payment:"Boleto",type:"Curso",notes:""},
-  {id:519,date:"2024-11-18",studentId:null,desc:"Workshop Reflexologia Facial",value:450,payment:"PIX",type:"Workshop",notes:""},
-  {id:520,date:"2024-11-22",studentId:null,desc:"Mapeamento Reflexológico",value:650,payment:"PIX",type:"Workshop",notes:""},
-  {id:521,date:"2024-11-28",studentId:null,desc:"Kit Completo Profissional",value:580,payment:"Cartão Crédito",type:"Produto",notes:""},
-  {id:522,date:"2024-12-05",studentId:null,desc:"Reflexologia Podal – Módulo I",value:980,payment:"PIX",type:"Curso",notes:""},
-  {id:523,date:"2024-12-10",studentId:null,desc:"Ambulatório de Pesquisa",value:0,payment:"N/A",type:"Curso",notes:"Gratuito"},
-  {id:524,date:"2024-12-15",studentId:null,desc:"Workshop Reflexologia Facial",value:450,payment:"PIX",type:"Workshop",notes:""},
-  {id:525,date:"2024-12-20",studentId:null,desc:"Apostila Digital+Impressa",value:270,payment:"PIX",type:"Produto",notes:""},
-  {id:526,date:"2025-01-06",studentId:201,desc:"Reflexologia Podal – Módulo I",value:980,payment:"Cartão Crédito",type:"Curso",notes:""},
-  {id:527,date:"2025-01-10",studentId:202,desc:"Reflexologia Podal – Módulo I",value:980,payment:"PIX",type:"Curso",notes:""},
-  {id:528,date:"2025-01-15",studentId:203,desc:"Reflexologia Podal – Módulo I",value:980,payment:"PIX",type:"Curso",notes:""},
-  {id:529,date:"2025-01-18",studentId:202,desc:"Workshop Reflexologia Facial",value:450,payment:"PIX",type:"Workshop",notes:""},
-  {id:530,date:"2025-01-18",studentId:201,desc:"Kit Básico Reflexologia",value:280,payment:"PIX",type:"Produto",notes:""},
-  {id:531,date:"2025-01-20",studentId:205,desc:"Workshop Reflexologia Facial",value:450,payment:"Boleto",type:"Workshop",notes:""},
-  {id:532,date:"2025-01-21",studentId:205,desc:"Estágio Clínico – Turma A",value:600,payment:"Boleto",type:"Curso",notes:""},
-  {id:533,date:"2025-01-22",studentId:206,desc:"Estágio Clínico – Turma A",value:600,payment:"Boleto",type:"Curso",notes:""},
-  {id:534,date:"2025-01-25",studentId:201,desc:"Reflexologia Podal – Módulo II",value:1200,payment:"Cartão Crédito",type:"Curso",notes:""},
-  {id:535,date:"2025-01-28",studentId:null,desc:"Atendimento Avulso",value:360,payment:"PIX",type:"Atendimento",notes:""},
-];
-
-const SEED_CHECKS = [
-  {id:601,text:"Enviar material do Módulo I para alunos",done:false,priority:"Alta", due:"2025-02-10",assignee:"Ana Lima",   createdAt:"2025-01-28T08:00:00"},
-  {id:602,text:"Confirmar sala para Workshop de Abril",  done:false,priority:"Alta", due:"2025-02-15",assignee:"Carla Reis", createdAt:"2025-01-28T09:00:00"},
-  {id:603,text:"Atualizar apostila digital Módulo II",   done:true, priority:"Média",due:"2025-01-30",assignee:"",           createdAt:"2025-01-20T10:00:00"},
-  {id:604,text:"Ligar para leads frios de janeiro",      done:false,priority:"Média",due:"2025-02-05",assignee:"Ana Lima",   createdAt:"2025-01-28T11:00:00"},
-  {id:605,text:"Emitir notas fiscais pendentes",         done:false,priority:"Alta", due:"2025-02-01",assignee:"Financeiro", createdAt:"2025-01-28T12:00:00"},
-];
-
-const SEED_TEMPLATES = [
-  {id:701,name:"Lembrete Pagamento",  text:"Olá {nome}! Passando para lembrar o valor em aberto referente a {curso}. Regularize para manter seu acesso ativo. Qualquer dúvida estamos à disposição! 🌿"},
-  {id:702,name:"Confirmação de Curso",text:"Olá {nome}! Confirmamos sua inscrição em {curso}. Em breve enviaremos mais detalhes! 🎓"},
-  {id:703,name:"Lista de Espera",     text:"Olá {nome}! Abrimos vagas para {curso} em {data}. Você tem prioridade na lista de espera. Vamos confirmar? ✨"},
-  {id:704,name:"Lembrete Atraso",     text:"Olá {nome}! Identificamos uma parcela em atraso referente a {curso}. Podemos regularizar? Estamos à disposição para ajudar! 🌿"},
-];
 
 /* ══════════════════════════════════════════════════
    HELPERS
@@ -1807,7 +1712,7 @@ function SDDesk({active,setActive,students,courses,checks,nav=NAV}){
     </nav>
     {!col&&<div style={{borderTop:"1px solid var(--b)",paddingTop:11,paddingLeft:5}}>
       <div style={{fontSize:9,color:"var(--mu)",lineHeight:1.5}}>IOR · Gestão Pro<br/><span style={{color:"var(--bl)",fontWeight:600}}>v2025</span></div>
-      <button onClick={()=>supabase.auth.signOut()} style={{marginTop:8,background:"#FEF2F2",border:"1.5px solid #FECACA",borderRadius:8,padding:"5px 10px",fontSize:11,color:"var(--rd)",cursor:"pointer",fontFamily:"DM Sans",fontWeight:600,width:"100%"}}>Sair</button>
+      <button onClick={()=>signOut?.()} style={{marginTop:8,background:"#FEF2F2",border:"1.5px solid #FECACA",borderRadius:8,padding:"5px 10px",fontSize:11,color:"var(--rd)",cursor:"pointer",fontFamily:"DM Sans",fontWeight:600,width:"100%"}}>Sair</button>
     </div>}
   </div>;
 }
@@ -1841,7 +1746,7 @@ function BotNav({active,setActive,onMenu,nav=NAV}){
    ROOT — SINGLE SOURCE OF TRUTH
    Dados carregados do banco via API — zero dados no JS
 ══════════════════════════════════════════════════ */
-export default function IOR(){
+export default function IOR({ user, role = "Assistente", isAdmin = false, isDev = false, signOut }={}){  // auth from App.tsx
   const[page,setPage]  = useState("dash");
   const[courses,setCourses]   = useState([]);
   const[students,setStudents] = useState([]);
