@@ -521,7 +521,7 @@ function CRMPage({leads,setLeads,courses,students,setStudents,sales,setSales}){
             "Origem":l.source,"Pagamento":l.payment,"Data":l.date,
             "Motivo perda":l.lossReason,"Notas":l.notes,
           }));
-          const porEstagio=STAGES.map(st=>({
+          const porEstagio=SCRM.map(st=>({
             "Estágio":st,
             "Qtd":leads.filter(l=>l.stage===st).length,
             "Valor potencial (R$)":(leads.filter(l=>l.stage===st).reduce((a,l)=>a+(+l.value||0),0)/100).toFixed(2),
