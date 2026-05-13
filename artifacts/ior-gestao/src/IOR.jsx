@@ -1869,8 +1869,7 @@ export default function IOR(){
   },[]);
 
   /* ── Perfil do usuário logado */
-  const userRole = user?.user_metadata?.role || 'Proprietária';
-  const isAdmin  = userRole === 'Proprietária';
+
 
   /* ── Carregamento de dados quando autenticado */
   useEffect(()=>{
