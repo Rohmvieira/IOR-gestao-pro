@@ -95,6 +95,8 @@ const LOSSES   = ["Preço alto","Sem tempo","Escolheu concorrente","Sem resposta
 const TEAM     = ["Ana Lima","Carla Reis","Coord. Pesquisa","Secretaria","Financeiro","Você"];
 const MODULES  = ["Dashboard","CRM Leads","CRM Produtos","Alunos","Cursos","Financeiro","Checklist","WA Lembretes","Pedagógico","Permissões","Social Media"];
 const ROLES    = ["Proprietária","Financeiro","Secretaria","Professor(a)","Assistente","Desenvolvedor"];
+const TYPE_C   = {"Bug":"var(--rd)","Feature":"var(--bl)","Dúvida":"var(--mu)","Urgente":"var(--am)"};
+const STATUS_C = {"Aberto":"var(--am)","Em andamento":"var(--bl)","Resolvido":"var(--gn)"};
 const MOPT     = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 const MNS      = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const SOCIAL_CATS = ["Reflexologia","Bem-estar","Curso/Workshop","Depoimento","Dica","Evento","Bastidores"];
@@ -1875,6 +1877,8 @@ export default function IOR(){
   useEffect(()=>{
     if(!user){ return; }
     setLoading(true);
+    // Garante que o role está atualizado no JWT via refresh
+    supabase.auth.refreshSession().catch(()=>{});
     Promise.all([
       db.courses.list(), db.students.list(), db.leads.list(),
       db.products.list(), db.sales.list(), db.checks.list(),
@@ -1964,8 +1968,6 @@ function SupportPage({user}){
   const e0={type:"Dúvida",title:"",message:""};
   const[form,setForm]=useState(e0);
   const ff=v=>setForm(p=>({...p,...v}));
-  const TYPE_C={"Bug":"var(--rd)","Feature":"var(--bl)","Dúvida":"var(--mu)","Urgente":"var(--am)"};
-  const STATUS_C={"Aberto":"var(--am)","Em andamento":"var(--bl)","Resolvido":"var(--gn)"};
 
   useEffect(()=>{
     supabase.from("support_tickets").select("*").order("created_at",{ascending:false})
@@ -2045,8 +2047,6 @@ function DevPage(){
   const[responding,setResponding]=useState(null);
   const[resp,setResp]=useState("");
   const[filter,setFilter]=useState("Todos");
-  const TYPE_C={"Bug":"var(--rd)","Feature":"var(--bl)","Dúvida":"var(--mu)","Urgente":"var(--am)"};
-  const STATUS_C={"Aberto":"var(--am)","Em andamento":"var(--bl)","Resolvido":"var(--gn)"};
 
   useEffect(()=>{
     // Dev vê todos os tickets de todos os tenants via service role
