@@ -1,13 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 
-export const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
+// Fallback garante que o app não quebra se .env não estiver configurado
+const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  || 'https://odegosowuketirxdgllb.supabase.co';
+const SUPABASE_KEY  = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_FoDiSdk9ynZ1yRDpJ1KDwg_B1c2S9E2';
 
-/* ══════════════════════════════════════════════════
-   Mapeamento DB (snake_case) ↔ Frontend (camelCase)
-══════════════════════════════════════════════════ */
+export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+/* ══ Mapeamento DB (snake_case) ↔ Frontend (camelCase) ══ */
 export const fromDB = {
   course:  c => c && ({ ...c, end: c.end_date, desc: c.description, checklistDeadlines: c.checklist_deadlines || {} }),
   student: s => s && ({ ...s, pType: s.p_type, pMethod: s.p_method, totalValue: s.total_value,
@@ -54,77 +53,30 @@ export const toDB = {
     interactions_new_followers: +m.interactionsNewFollowers||0, interactions_followers: +m.interactionsFollowers||0 }),
 };
 
-/* ══════════════════════════════════════════════════
-   CRUD genérico com tratamento de erro
-══════════════════════════════════════════════════ */
+/* ══ CRUD genérico ══ */
 async function sbInsert(table, data, mapFrom) {
   const { data: row, error } = await supabase.from(table).insert(data).select().single();
   if (error) { console.error(`Insert ${table}:`, error); return null; }
   return mapFrom ? mapFrom(row) : row;
 }
-
 async function sbUpdate(table, id, data) {
   const { error } = await supabase.from(table).update(data).eq('id', id);
   if (error) console.error(`Update ${table} ${id}:`, error);
   return !error;
 }
-
 async function sbDelete(table, id) {
   const { error } = await supabase.from(table).delete().eq('id', id);
   if (error) console.error(`Delete ${table} ${id}:`, error);
   return !error;
 }
 
-/* ══════════════════════════════════════════════════
-   API do banco — usada no IOR.jsx
-══════════════════════════════════════════════════ */
 export const db = {
-  courses: {
-    list:   ()    => supabase.from('courses').select('*').order('date').then(r => (r.data||[]).map(fromDB.course)),
-    insert: data  => sbInsert('courses', toDB.course(data), fromDB.course),
-    update: (id,d)=> sbUpdate('courses', id, toDB.course(d)),
-    delete: id    => sbDelete('courses', id),
-  },
-  students: {
-    list:   ()    => supabase.from('students').select('*').order('name').then(r => (r.data||[]).map(fromDB.student)),
-    insert: data  => sbInsert('students', toDB.student(data), fromDB.student),
-    update: (id,d)=> sbUpdate('students', id, toDB.student(d)),
-    delete: id    => sbDelete('students', id),
-  },
-  leads: {
-    list:   ()    => supabase.from('leads').select('*').order('created_at', {ascending:false}).then(r => (r.data||[]).map(fromDB.lead)),
-    insert: data  => sbInsert('leads', toDB.lead(data), fromDB.lead),
-    update: (id,d)=> sbUpdate('leads', id, toDB.lead(d)),
-    delete: id    => sbDelete('leads', id),
-  },
-  products: {
-    list:   ()    => supabase.from('products').select('*').order('created_at', {ascending:false}).then(r => (r.data||[]).map(fromDB.product)),
-    insert: data  => sbInsert('products', toDB.product(data), fromDB.product),
-    update: (id,d)=> sbUpdate('products', id, toDB.product(d)),
-    delete: id    => sbDelete('products', id),
-  },
-  sales: {
-    list:   ()    => supabase.from('sales').select('*').order('date').then(r => (r.data||[]).map(fromDB.sale)),
-    insert: data  => sbInsert('sales', toDB.sale(data), fromDB.sale),
-    update: (id,d)=> sbUpdate('sales', id, toDB.sale(d)),
-    delete: id    => sbDelete('sales', id),
-  },
-  checks: {
-    list:   ()    => supabase.from('checks').select('*').order('created_at').then(r => (r.data||[]).map(fromDB.check)),
-    insert: data  => sbInsert('checks', toDB.check(data), fromDB.check),
-    update: (id,d)=> sbUpdate('checks', id, toDB.check(d)),
-    delete: id    => sbDelete('checks', id),
-  },
-  templates: {
-    list:   ()    => supabase.from('templates').select('*').order('name').then(r => (r.data||[]).map(fromDB.template)),
-    insert: data  => sbInsert('templates', toDB.template(data), fromDB.template),
-    update: (id,d)=> sbUpdate('templates', id, toDB.template(d)),
-    delete: id    => sbDelete('templates', id),
-  },
-  metrics: {
-    list:   ()    => supabase.from('social_metrics').select('*').order('month').then(r => (r.data||[]).map(fromDB.metric)),
-    insert: data  => sbInsert('social_metrics', toDB.metric(data), fromDB.metric),
-    update: (id,d)=> sbUpdate('social_metrics', id, toDB.metric(d)),
-    delete: id    => sbDelete('social_metrics', id),
-  },
+  courses:   { list: () => supabase.from('courses').select('*').order('date').then(r => (r.data||[]).map(fromDB.course)), insert: d => sbInsert('courses', toDB.course(d), fromDB.course), update: (id,d) => sbUpdate('courses', id, toDB.course(d)), delete: id => sbDelete('courses', id) },
+  students:  { list: () => supabase.from('students').select('*').order('name').then(r => (r.data||[]).map(fromDB.student)), insert: d => sbInsert('students', toDB.student(d), fromDB.student), update: (id,d) => sbUpdate('students', id, toDB.student(d)), delete: id => sbDelete('students', id) },
+  leads:     { list: () => supabase.from('leads').select('*').order('created_at',{ascending:false}).then(r => (r.data||[]).map(fromDB.lead)), insert: d => sbInsert('leads', toDB.lead(d), fromDB.lead), update: (id,d) => sbUpdate('leads', id, toDB.lead(d)), delete: id => sbDelete('leads', id) },
+  products:  { list: () => supabase.from('products').select('*').order('created_at',{ascending:false}).then(r => (r.data||[]).map(fromDB.product)), insert: d => sbInsert('products', toDB.product(d), fromDB.product), update: (id,d) => sbUpdate('products', id, toDB.product(d)), delete: id => sbDelete('products', id) },
+  sales:     { list: () => supabase.from('sales').select('*').order('date').then(r => (r.data||[]).map(fromDB.sale)), insert: d => sbInsert('sales', toDB.sale(d), fromDB.sale), update: (id,d) => sbUpdate('sales', id, toDB.sale(d)), delete: id => sbDelete('sales', id) },
+  checks:    { list: () => supabase.from('checks').select('*').order('created_at').then(r => (r.data||[]).map(fromDB.check)), insert: d => sbInsert('checks', toDB.check(d), fromDB.check), update: (id,d) => sbUpdate('checks', id, toDB.check(d)), delete: id => sbDelete('checks', id) },
+  templates: { list: () => supabase.from('templates').select('*').order('name').then(r => (r.data||[]).map(fromDB.template)), insert: d => sbInsert('templates', toDB.template(d), fromDB.template), update: (id,d) => sbUpdate('templates', id, toDB.template(d)), delete: id => sbDelete('templates', id) },
+  metrics:   { list: () => supabase.from('social_metrics').select('*').order('month').then(r => (r.data||[]).map(fromDB.metric)), insert: d => sbInsert('social_metrics', toDB.metric(d), fromDB.metric), update: (id,d) => sbUpdate('social_metrics', id, toDB.metric(d)), delete: id => sbDelete('social_metrics', id) },
 };
