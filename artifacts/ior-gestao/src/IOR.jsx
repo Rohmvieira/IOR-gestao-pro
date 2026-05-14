@@ -1697,7 +1697,7 @@ const NAV=[
 ];
 const BOT=[{id:"dash",icon:"⬡",lbl:"Início"},{id:"crm",icon:"◈",lbl:"CRM"},{id:"cursos",icon:"❋",lbl:"Cursos"},{id:"fin",icon:"◆",lbl:"Financ."},{id:"__m__",icon:"☰",lbl:"Mais"}];
 
-function SDDesk({active,setActive,students,courses,checks,nav=NAV}){
+function SDDesk({active,setActive,students,courses,checks,nav=NAV,signOut}){
   const[col,setCol]=useState(false);
   return <div className={`sd ${col?"c":"e"}`}>
     <div style={{display:"flex",alignItems:"center",justifyContent:col?"center":"space-between",marginBottom:26}}>
@@ -1825,7 +1825,7 @@ export default function IOR({ user, role = "Assistente", isAdmin = false, isDev 
   return <>
     <GS/>
     <div style={{display:"flex",height:"100vh",overflow:"hidden",background:"var(--bg)"}}>
-      <SDDesk active={page} setActive={setPage} students={students} courses={courses} checks={checks} nav={visibleNav}/>
+      <SDDesk active={page} setActive={setPage} students={students} courses={courses} checks={checks} nav={visibleNav} signOut={signOut}/>
       <SDMob  active={page} setActive={setPage} open={drawer} onClose={()=>setDrawer(false)} students={students} courses={courses} checks={checks} nav={visibleNav} signOut={signOut}/>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
         <div className="mob" style={{flexShrink:0,height:48,background:"#fff",borderBottom:"1px solid var(--b)",alignItems:"center",justifyContent:"space-between",padding:"0 16px",boxShadow:"0 2px 8px rgba(30,40,80,.07)"}}>
