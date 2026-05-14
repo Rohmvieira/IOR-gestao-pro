@@ -69,13 +69,13 @@ function GS() {
     .bni{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;background:transparent;border:none;color:var(--mu);transition:color .15s}
     .bni.a{color:var(--bl)}
     .mob{display:none!important}.dsk{display:flex!important}
-    .notif-drop{position:absolute;top:38px;left:0;width:320px;background:#fff;border:1px solid var(--b);border-radius:14px;box-shadow:var(--shadow-md);z-index:400;max-height:420px;overflow-y:auto;animation:su .2s ease}
+    .notif-drop{position:fixed;top:60px;left:16px;right:16px;width:auto;max-width:360px;background:#fff;border:1px solid var(--b);border-radius:14px;box-shadow:0 8px 32px rgba(20,30,60,.18);z-index:500;max-height:420px;overflow-y:auto;animation:su .2s ease}
     @media(max-width:768px){
       .g2,.gdash,.gwa{grid-template-columns:1fr!important}
       .mob{display:flex!important}.dsk{display:none!important}
       .bn{display:flex!important}.sd{display:none!important}
       .mc{padding:13px!important;padding-bottom:calc(var(--bnh)+10px)!important}
-      .notif-drop{left:0;right:auto;width:290px}
+      .notif-drop{left:0;right:auto;width:calc(100vw - 32px);max-width:290px}
     }
   `}</style>;
 }
@@ -1719,7 +1719,7 @@ function SDDesk({active,setActive,students,courses,checks,nav=NAV}){
   </div>;
 }
 
-function SDMob({active,setActive,open,onClose,students,courses,checks,nav=NAV}){
+function SDMob({active,setActive,open,onClose,students,courses,checks,nav=NAV,signOut}){
   return <>
     <div className={`ov ${open?"op":""}`} onClick={onClose}/>
     <div className={`dr ${open?"op":""}`}>
@@ -1727,11 +1727,16 @@ function SDMob({active,setActive,open,onClose,students,courses,checks,nav=NAV}){
         <div><div style={{fontFamily:"Playfair Display",fontSize:10,color:"var(--mu)",letterSpacing:2,textTransform:"uppercase"}}>Instituto de</div><div style={{fontFamily:"Playfair Display",fontSize:19,fontWeight:700,color:"var(--bl)"}}>Reflexologia</div><div style={{fontFamily:"Playfair Display",fontSize:11,color:"var(--mu)"}}>& Pesquisa</div><div style={{width:22,height:2,background:"var(--bl)",marginTop:6,borderRadius:99}}/></div>
         <div style={{display:"flex",alignItems:"center",gap:8}}><NotifBell students={students} courses={courses} checks={checks}/><button onClick={onClose} style={{background:"#F7F9FC",border:"1.5px solid #DDE3EE",borderRadius:7,width:30,height:30,color:"var(--mu)",cursor:"pointer",fontSize:16,flexShrink:0}}>×</button></div>
       </div>
-      <nav style={{display:"flex",flexDirection:"column",gap:1}}>
+      <nav style={{display:"flex",flexDirection:"column",gap:1,flex:1,overflowY:"auto"}}>
         {nav.map(n=><button key={n.id} onClick={()=>{setActive(n.id);onClose();}} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 12px",borderRadius:9,border:"none",cursor:"pointer",background:active===n.id?"#EEF4FF":"transparent",color:active===n.id?"var(--bl)":"var(--mu)",fontFamily:"DM Sans",fontSize:13,fontWeight:active===n.id?700:400,borderLeft:`3px solid ${active===n.id?"var(--bl)":"transparent"}`,textAlign:"left"}}>
           <span style={{fontSize:14}}>{n.icon}</span>{n.lbl}
         </button>)}
       </nav>
+      <div style={{marginTop:"auto",paddingTop:16,borderTop:"1px solid var(--b)"}}>
+        <button onClick={()=>signOut?.()} style={{width:"100%",background:"#FEF2F2",border:"1.5px solid #FECACA",borderRadius:9,padding:"11px",fontSize:13,color:"var(--rd)",cursor:"pointer",fontFamily:"DM Sans",fontWeight:700}}>
+          Sair da conta
+        </button>
+      </div>
     </div>
   </>;
 }
@@ -1821,7 +1826,7 @@ export default function IOR({ user, role = "Assistente", isAdmin = false, isDev 
     <GS/>
     <div style={{display:"flex",height:"100vh",overflow:"hidden",background:"var(--bg)"}}>
       <SDDesk active={page} setActive={setPage} students={students} courses={courses} checks={checks} nav={visibleNav}/>
-      <SDMob  active={page} setActive={setPage} open={drawer} onClose={()=>setDrawer(false)} students={students} courses={courses} checks={checks} nav={visibleNav}/>
+      <SDMob  active={page} setActive={setPage} open={drawer} onClose={()=>setDrawer(false)} students={students} courses={courses} checks={checks} nav={visibleNav} signOut={signOut}/>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
         <div className="mob" style={{flexShrink:0,height:48,background:"#fff",borderBottom:"1px solid var(--b)",alignItems:"center",justifyContent:"space-between",padding:"0 16px",boxShadow:"0 2px 8px rgba(30,40,80,.07)"}}>
           <button onClick={()=>setDrawer(true)} style={{background:"transparent",border:"none",color:"var(--mu)",fontSize:20,cursor:"pointer"}}>☰</button>
