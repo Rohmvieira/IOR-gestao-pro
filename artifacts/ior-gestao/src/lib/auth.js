@@ -56,6 +56,6 @@ export function useAuth() {
     isAdmin: role === "Proprietária",
     isDev:   role === "Desenvolvedor",
     loading,
-    signOut: () => supabase.auth.signOut(),
+    signOut: async () => { await supabase.auth.signOut(); window.location.href = '/'; },
   };
 }
