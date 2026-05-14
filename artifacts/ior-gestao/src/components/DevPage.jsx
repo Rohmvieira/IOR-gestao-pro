@@ -118,7 +118,6 @@ export default function DevPage({user,signOut}){
               <div style={{textAlign:"center",padding:"40px 0",color:"#9AAAC0"}}>Carregando dados…</div>
             ):(
               <>
-                        {/* Tickets */
                 <div style={{marginBottom:16}}>
                   <div style={{fontSize:11,fontWeight:700,color:"#9AAAC0",textTransform:"uppercase",letterSpacing:.5,marginBottom:10}}>Suporte</div>
                   <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
