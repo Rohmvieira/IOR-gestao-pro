@@ -133,7 +133,6 @@ export default function DevPage({user,signOut}){
                   </div>
                 </div>
 
-                {/* Atividade recente (audit logs) */}
                 {auditLogs.length>0&&(
                   <div>
                     <div style={{fontSize:11,fontWeight:700,color:"#9AAAC0",textTransform:"uppercase",letterSpacing:.5,marginBottom:10}}>Atividade recente</div>
