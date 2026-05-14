@@ -8,21 +8,9 @@ function Badge({color,children}){
   return <span style={{display:"inline-flex",alignItems:"center",background:color+"18",color,border:`1.5px solid ${color}44`,borderRadius:99,padding:"2px 9px",fontSize:11,fontWeight:700,fontFamily:"DM Sans",whiteSpace:"nowrap"}}>{children}</span>;
 }
 
-function Card({icon,label,value,color="#1A2540",sub}){
-  return(
-    <div style={{background:"#fff",borderRadius:12,padding:"14px",border:"1.5px solid #E5EAF3",boxShadow:"0 2px 8px rgba(0,0,0,.04)"}}>
-      <div style={{fontSize:20,marginBottom:4}}>{icon}</div>
-      <div style={{fontSize:22,fontWeight:700,color,lineHeight:1}}>{value}</div>
-      <div style={{fontSize:11,color:"#9AAAC0",marginTop:3}}>{label}</div>
-      {sub&&<div style={{fontSize:10,color:"#C0C8D8",marginTop:2}}>{sub}</div>}
-    </div>
-  );
-}
-
 export default function DevPage({user,signOut}){
   const[tab,setTab]         = useState("dash");
   const[tickets,setTickets] = useState([]);
-  const[health,setHealth]   = useState(null);
   const[auditLogs,setAudit] = useState([]);
   const[loading,setLoading] = useState(true);
   const[filter,setFilter]   = useState("Todos");
@@ -33,13 +21,11 @@ export default function DevPage({user,signOut}){
 
   async function loadAll(){
     setRefreshing(true);
-    const [tickRes, healthRes, auditRes] = await Promise.allSettled([
+    const [tickRes, auditRes] = await Promise.allSettled([
       supabase.from("support_tickets").select("*").order("created_at",{ascending:false}),
-      supabase.from("vw_system_health").select("*").single(),
       supabase.from("audit_logs").select("*").order("created_at",{ascending:false}).limit(20),
     ]);
     if(tickRes.status==="fulfilled")  setTickets(tickRes.value.data||[]);
-    if(healthRes.status==="fulfilled") setHealth(healthRes.value.data);
     if(auditRes.status==="fulfilled")  setAudit(auditRes.value.data||[]);
     setLoading(false);setRefreshing(false);
   }
@@ -132,27 +118,7 @@ export default function DevPage({user,signOut}){
               <div style={{textAlign:"center",padding:"40px 0",color:"#9AAAC0"}}>Carregando dados…</div>
             ):(
               <>
-                {/* Saúde do sistema */}
-                <div style={{marginBottom:16}}>
-                  <div style={{fontSize:11,fontWeight:700,color:"#9AAAC0",textTransform:"uppercase",letterSpacing:.5,marginBottom:10}}>Sistema</div>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8}}>
-                    <Card icon="👥" label="Alunos cadastrados" value={health?.total_students??"-"} color="#3066BE"/>
-                    <Card icon="🎯" label="Leads em aberto" value={health?.open_leads??"-"} color="#C07700"/>
-                    <Card icon="📚" label="Cursos futuros" value={health?.upcoming_courses??"-"} color="#1E8A4C"/>
-                    <Card icon="✅" label="Tarefas pendentes" value={health?.pending_tasks??"-"} color="#6B7A99"/>
-                  </div>
-                </div>
-
-                {/* Receita */}
-                {health?.revenue_this_month!=null&&(
-                  <div style={{background:"linear-gradient(135deg,#3066BE,#1A52AA)",borderRadius:14,padding:"16px",marginBottom:16,color:"#fff"}}>
-                    <div style={{fontSize:11,fontWeight:600,opacity:.8,marginBottom:4,textTransform:"uppercase",letterSpacing:.5}}>Receita este mês</div>
-                    <div style={{fontSize:28,fontWeight:700}}>R$ {(+(health.revenue_this_month)/100).toLocaleString("pt-BR",{minimumFractionDigits:2})}</div>
-                    <div style={{fontSize:10,opacity:.7,marginTop:4}}>Atualizado em {new Date(health.checked_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div>
-                  </div>
-                )}
-
-                {/* Tickets */}
+                        {/* Tickets */
                 <div style={{marginBottom:16}}>
                   <div style={{fontSize:11,fontWeight:700,color:"#9AAAC0",textTransform:"uppercase",letterSpacing:.5,marginBottom:10}}>Suporte</div>
                   <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
