@@ -1692,6 +1692,8 @@ const NAV=[
   {id:"social",   icon:"📸",lbl:"Social Media"},
   {id:"perms",    icon:"🔐",lbl:"Permissões"},
   {id:"users",    icon:"👥",lbl:"Usuários",adminOnly:true},
+  {id:"suporte",  icon:"💬",lbl:"Suporte Dev",adminOnly:true},
+  {id:"devpanel", icon:"🛠",lbl:"Dev Panel",devOnly:true},
 ];
 const BOT=[{id:"dash",icon:"⬡",lbl:"Início"},{id:"crm",icon:"◈",lbl:"CRM"},{id:"cursos",icon:"❋",lbl:"Cursos"},{id:"fin",icon:"◆",lbl:"Financ."},{id:"__m__",icon:"☰",lbl:"Mais"}];
 
