@@ -2125,7 +2125,7 @@ function UsersPage(){
     if(editing){
       data=await callEdge({action:"update",userId:editing.id,name:form.name,userRole:form.role,...(form.password?{newPassword:form.password}:{})});
     } else if(mode==="invite"){
-      data=await callEdge({action:"invite",email:form.email,name:form.name,userRole:form.role,redirectTo:window.location.origin+"/auth/callback"});
+      data=await callEdge({action:"invite",email:form.email,name:form.name,userRole:form.role,redirectTo:"https://ior-gestao-pro.vercel.app"});
     } else {
       if(!form.password.trim()){setErr("Senha obrigatória");setSaving(false);return;}
       data=await callEdge({action:"create",email:form.email,password:form.password,name:form.name,userRole:form.role});
@@ -2142,7 +2142,7 @@ function UsersPage(){
 
   async function resendInvite(u){
     setErr("");
-    const data=await callEdge({action:"resend_invite",email:u.email,name:u.name,userRole:u.role,redirectTo:window.location.origin+"/auth/callback"});
+    const data=await callEdge({action:"resend_invite",email:u.email,name:u.name,userRole:u.role,redirectTo:"https://ior-gestao-pro.vercel.app"});
     if(data.error)setErr(data.error);
     else{setSuccessMsg(`✉ Convite reenviado para ${u.email}!`);setTimeout(()=>setSuccessMsg(""),4000);}
   }
