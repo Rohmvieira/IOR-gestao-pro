@@ -1824,6 +1824,8 @@ export default function IOR({ user, role = "Assistente", isAdmin = false, isDev 
   const[loadErr,setLoadErr]   = useState(null);
   const curr=NAV.find(n=>n.id===page);
 
+  const[permsDB,setPermsDB] = useState(null); // permissões carregadas do banco
+
   /* ── Carregamento de dados quando autenticado */
   useEffect(()=>{
     if(!user?.id){ return; }
@@ -1832,10 +1834,13 @@ export default function IOR({ user, role = "Assistente", isAdmin = false, isDev 
       db.courses.list(), db.students.list(), db.leads.list(),
       db.products.list(), db.sales.list(), db.checks.list(),
       db.templates.list(), db.metrics.list(),
-    ]).then(([c,st,l,pr,sa,ch,tp,mt])=>{
+      // Carrega permissões do banco
+      supabase.from("settings").select("value").eq("id","permissions").single(),
+    ]).then(([c,st,l,pr,sa,ch,tp,mt,perm])=>{
       setCourses(c||[]); setStudents(st||[]); setLeads(l||[]);
       setProducts(pr||[]); setSales(sa||[]); setChecks(ch||[]);
       setTemplates(tp||[]); setSocialMetrics(mt||[]);
+      if(perm.data?.value) setPermsDB(perm.data.value);
       setLoading(false);
     }).catch(err=>{ setLoadErr(err.message); setLoading(false); });
   },[user?.id]);
@@ -1856,26 +1861,54 @@ export default function IOR({ user, role = "Assistente", isAdmin = false, isDev 
   </div>;
 
 
+  function pageOrBlock(id, el){
+    if(isAdmin) return el;
+    if(!canAccess(id)) return <div style={{padding:"48px 24px",textAlign:"center",color:"var(--mu)",fontFamily:"DM Sans"}}>
+      <div style={{fontSize:40,marginBottom:12}}>🔒</div>
+      <div style={{fontFamily:"Playfair Display",fontSize:18,color:"var(--bl)",marginBottom:8}}>Acesso restrito</div>
+      <div style={{fontSize:13}}>Você não tem permissão para acessar este módulo.</div>
+    </div>;
+    return el;
+  }
+
   const pages={
-    dash:    <DashPage     leads={leads} students={students} courses={courses} sales={sales}/>,
-    crm:     <CRMPage      leads={leads} setLeads={setLeads} courses={courses} students={students} setStudents={setStudents} sales={sales} setSales={setSales}/>,
-    produtos:<ProductsPage products={products} setProducts={setProducts} sales={sales} setSales={setSales}/>,
-    alunos:  <StudentsPage students={students} setStudents={setStudents} courses={courses} sales={sales} setSales={setSales} templates={templates}/>,
-    cursos:  <CoursesPage  courses={courses} setCourses={setCourses} students={students} setStudents={setStudents}/>,
-    fin:     <FinancialPage sales={sales} setSales={setSales} courses={courses} students={students}/>,
-    check:   <ChecklistPage checks={checks} setChecks={setChecks}/>,
-    wa:      <WhatsAppPage  leads={leads} students={students} courses={courses} templates={templates} setTemplates={setTemplates}/>,
-    ped:     <PedagogicoPage students={students} setStudents={setStudents} courses={courses}/>,
-    social:  <SocialPage socialMetrics={socialMetrics} setSocialMetrics={setSocialMetrics}/>,
-    perms:   <PermissoesPage/>,
-    suporte: isAdmin||isDev ? <SupportPage user={user}/> : null,
-    devpanel: isDev ? <DevPage/> : null,
-    users:   isAdmin ? <UsersPage /> : <div style={{padding:24,color:"var(--rd)",fontFamily:"DM Sans"}}>Acesso restrito à Proprietária.</div>,
+    dash:    pageOrBlock("dash",    <DashPage     leads={leads} students={students} courses={courses} sales={sales}/>),
+    crm:     pageOrBlock("crm",     <CRMPage      leads={leads} setLeads={setLeads} courses={courses} students={students} setStudents={setStudents} sales={sales} setSales={setSales}/>),
+    produtos:pageOrBlock("produtos",<ProductsPage products={products} setProducts={setProducts} sales={sales} setSales={setSales}/>),
+    alunos:  pageOrBlock("alunos",  <StudentsPage students={students} setStudents={setStudents} courses={courses} sales={sales} setSales={setSales} templates={templates}/>),
+    cursos:  pageOrBlock("cursos",  <CoursesPage  courses={courses} setCourses={setCourses} students={students} setStudents={setStudents}/>),
+    fin:     pageOrBlock("fin",     <FinancialPage sales={sales} setSales={setSales} courses={courses} students={students}/>),
+    check:   pageOrBlock("check",   <ChecklistPage checks={checks} setChecks={setChecks}/>),
+    wa:      pageOrBlock("wa",      <WhatsAppPage  leads={leads} students={students} courses={courses} templates={templates} setTemplates={setTemplates}/>),
+    ped:     pageOrBlock("ped",     <PedagogicoPage students={students} setStudents={setStudents} courses={courses}/>),
+    social:  pageOrBlock("social",  <SocialPage socialMetrics={socialMetrics} setSocialMetrics={setSocialMetrics}/>),
+    perms:   pageOrBlock("perms",   <PermissoesPage/>),
+    suporte: isAdmin ? <SupportPage user={user}/> : null,
+    devpanel:isDev   ? <DevPage/>   : null,
+    users:   isAdmin ? <UsersPage/> : null,
   };
+  // Mapa: page id → nome do módulo nas permissões
+  const PAGE_TO_MODULE = {
+    dash:"Dashboard", crm:"CRM Leads", produtos:"CRM Produtos",
+    alunos:"Alunos", cursos:"Cursos", fin:"Financeiro",
+    check:"Checklist", wa:"WA Lembretes", ped:"Painel Pedagógico",
+    social:"Social Media", perms:"Permissões",
+  };
+
+  function canAccess(navId){
+    if(isAdmin) return true;          // Proprietária acessa tudo
+    if(isDev)   return false;          // Dev usa painel próprio
+    const mod = PAGE_TO_MODULE[navId];
+    if(!mod) return false;             // Módulo desconhecido = bloqueado
+    if(!permsDB) return true;          // Sem config no banco = libera tudo
+    const rolePerms = permsDB[role] || {};
+    return !!rolePerms[mod];
+  }
+
   const visibleNav = NAV.filter(n => {
-    if(n.devOnly) return isDev;
-    if(n.adminOnly) return isAdmin || isDev;
-    return true;
+    if(n.devOnly)   return isDev;
+    if(n.adminOnly) return isAdmin;
+    return canAccess(n.id);
   });
 
   return <>
