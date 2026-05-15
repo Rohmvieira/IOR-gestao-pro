@@ -1628,6 +1628,22 @@ function SocialPage({socialMetrics,setSocialMetrics}){
 ══════════════════════════════════════════════════ */
 function PermissoesPage(){
   const[perms,setPerms]=useState(IPERMS_INIT);
+  const[saved,setSaved]=useState(false);
+  const[saving,setSaving]=useState(false);
+
+  // Carrega permissões do banco
+  useEffect(()=>{
+    supabase.from("settings").select("value").eq("id","permissions").single()
+      .then(({data})=>{ if(data?.value) setPerms(p=>({...IPERMS_INIT,...data.value})); });
+  },[]);
+
+  async function savePerms(){
+    setSaving(true);
+    const {error}=await supabase.from("settings")
+      .upsert({id:"permissions",tenant_id:"default",value:perms,updated_at:new Date().toISOString()});
+    setSaving(false);
+    if(!error){setSaved(true);setTimeout(()=>setSaved(false),2500);}
+  }
   const[roleNames,setRoleNames]=useState(()=>ROLES.reduce((a,r)=>({...a,[r]:r}),{}));
   const[editRole,setEditRole]=useState(null);const[editRoleVal,setEditRoleVal]=useState("");
   const[linkedUsers,setLinkedUsers]=useState(()=>ROLES.reduce((a,r)=>({...a,[r]:[]}),{}));
