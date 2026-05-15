@@ -1627,42 +1627,82 @@ function SocialPage({socialMetrics,setSocialMetrics}){
    PERMISSÕES
 ══════════════════════════════════════════════════ */
 function PermissoesPage(){
-  const[perms,setPerms]=useState(IPERMS_INIT);
-  const[saved,setSaved]=useState(false);
-  const[saving,setSaving]=useState(false);
+  // ── State declarations (ordem importa — evita TDZ)
+  const[perms,    setPerms]     = useState(IPERMS_INIT);
+  const[roleNames,setRoleNames] = useState(()=>ROLES.reduce((a,r)=>({...a,[r]:r}),{}));
+  const[selRole,  setSelRole]   = useState("Proprietária");
+  const[editRole, setEditRole]  = useState(null);
+  const[editRoleVal,setEditRoleVal] = useState("");
+  const[saving,   setSaving]    = useState(false);
+  const[saved,    setSaved]     = useState(false);
+  const[saveErr,  setSaveErr]   = useState("");
 
-  // Carrega permissões do banco
+  // ── Carrega permissões e nomes do banco ao abrir
   useEffect(()=>{
-    supabase.from("settings").select("value").eq("id","permissions").single()
-      .then(({data})=>{ if(data?.value) setPerms(p=>({...IPERMS_INIT,...data.value})); });
+    Promise.all([
+      supabase.from("settings").select("value").eq("id","permissions").single(),
+      supabase.from("settings").select("value").eq("id","role_names").single(),
+    ]).then(([r1,r2])=>{
+      if(r1.data?.value) setPerms(()=>({...IPERMS_INIT,...r1.data.value}));
+      if(r2.data?.value) setRoleNames(()=>({...ROLES.reduce((a,r)=>({...a,[r]:r}),{}),...r2.data.value}));
+    });
   },[]);
 
-  async function savePerms(){
-    setSaving(true);
-    const {error}=await supabase.from("settings")
-      .upsert({id:"permissions",tenant_id:"default",value:perms,updated_at:new Date().toISOString()});
-    setSaving(false);
-    if(!error){setSaved(true);setTimeout(()=>setSaved(false),2500);}
-  }
-  const[roleNames,setRoleNames]=useState(()=>ROLES.reduce((a,r)=>({...a,[r]:r}),{}));
-  const[editRole,setEditRole]=useState(null);const[editRoleVal,setEditRoleVal]=useState("");
-  const[linkedUsers,setLinkedUsers]=useState(()=>ROLES.reduce((a,r)=>({...a,[r]:[]}),{}));
-  const[editUsers,setEditUsers]=useState(null);const[newUser,setNewUser]=useState("");
-  const[selRole,setSelRole]=useState("Proprietária");
+  // ── Funções
   function toggle(role,mod){setPerms(p=>({...p,[role]:{...p[role],[mod]:!p[role][mod]}}))}
   function setAll(role,val){setPerms(p=>({...p,[role]:MODULES.reduce((a,m)=>({...a,[m]:val}),{})}))}
-  function saveRoleName(orig){if(!editRoleVal.trim())return;setRoleNames(r=>({...r,[orig]:editRoleVal.trim()}));setEditRole(null);}
+  function confirmRoleName(orig){
+    if(!editRoleVal.trim()){setEditRole(null);return;}
+    setRoleNames(r=>({...r,[orig]:editRoleVal.trim()}));
+    setEditRole(null);
+  }
+
+  async function handleSave(){
+    setSaving(true);setSaveErr("");
+    try{
+      const[r1,r2]=await Promise.all([
+        supabase.from("settings").upsert({id:"permissions",tenant_id:"default",value:perms,updated_at:new Date().toISOString()}),
+        supabase.from("settings").upsert({id:"role_names",tenant_id:"default",value:roleNames,updated_at:new Date().toISOString()}),
+      ]);
+      if(r1.error||r2.error) setSaveErr("Erro ao salvar. Tente novamente.");
+      else{setSaved(true);setTimeout(()=>setSaved(false),3000);}
+    }catch(e){setSaveErr(e.message||"Erro desconhecido.");}
+    setSaving(false);
+  }
+
   return <div style={{animation:"up .4s ease"}}>
-    <div style={{marginBottom:16}}><h1 style={{fontFamily:"Playfair Display",fontSize:24,fontWeight:700}}>Permissões</h1><p style={{color:"var(--mu)",fontSize:11,marginTop:2}}>Controle de acesso por perfil</p></div>
+    {/* Header com botão Salvar */}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16,flexWrap:"wrap",gap:10}}>
+      <div>
+        <h1 style={{fontFamily:"Playfair Display",fontSize:24,fontWeight:700}}>Permissões</h1>
+        <p style={{color:"var(--mu)",fontSize:11,marginTop:2}}>Edite os nomes dos perfis (✏️) e marque quais módulos cada perfil acessa</p>
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        {saveErr&&<span style={{fontSize:12,color:"var(--rd)",fontWeight:600}}>{saveErr}</span>}
+        {saved&&<span style={{fontSize:12,color:"var(--gn)",fontWeight:700}}>✓ Salvo com sucesso!</span>}
+        <button onClick={handleSave} disabled={saving} style={{background:"linear-gradient(135deg,var(--pu),var(--bl))",border:"none",borderRadius:9,padding:"9px 20px",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans",opacity:saving?.7:1,boxShadow:"0 2px 8px rgba(48,102,190,.25)"}}>
+          {saving?"Salvando…":"💾 Salvar tudo"}
+        </button>
+      </div>
+    </div>
+    {/* Seletor de perfis com edição de nome */}
     <div style={{display:"flex",gap:8,marginBottom:18,flexWrap:"wrap"}}>
       {ROLES.map(r=>{const ed=editRole===r;return <div key={r} style={{display:"flex",alignItems:"center",gap:5}}>
-        {ed?<div style={{display:"flex",gap:6,alignItems:"center"}}>
-          <input value={editRoleVal} onChange={e=>setEditRoleVal(e.target.value)} autoFocus style={{background:"#F7F9FC",border:"1.5px solid var(--bl)",borderRadius:8,padding:"7px 11px",color:"var(--tx)",fontSize:12,outline:"none",fontFamily:"DM Sans",width:130}}/>
-          <Btn sz="sm" onClick={()=>saveRoleName(r)}>✓</Btn><Btn sz="sm" v="ghost" onClick={()=>setEditRole(null)}>✕</Btn>
-        </div>:<div style={{display:"flex",alignItems:"center",gap:4}}>
-          <button onClick={()=>setSelRole(r)} style={{background:selRole===r?"#EEF4FF":"#fff",border:`1.5px solid ${selRole===r?"var(--bl)":"#DDE3EE"}`,color:selRole===r?"var(--bl)":"var(--mu)",borderRadius:9,padding:"8px 14px",fontSize:13,fontWeight:600,cursor:"pointer",boxShadow:"var(--shadow)"}}>{roleNames[r]}</button>
-          <button onClick={()=>{setEditRole(r);setEditRoleVal(roleNames[r]);}} style={{background:"transparent",border:"none",color:"var(--mu2)",cursor:"pointer",fontSize:13,padding:"2px 4px"}}>✏️</button>
-        </div>}
+        {ed
+          ? <div style={{display:"flex",gap:6,alignItems:"center"}}>
+              <input value={editRoleVal} onChange={e=>setEditRoleVal(e.target.value)}
+                onKeyDown={e=>e.key==="Enter"&&confirmRoleName(r)}
+                autoFocus style={{background:"#F7F9FC",border:"1.5px solid var(--bl)",borderRadius:8,padding:"7px 11px",color:"var(--tx)",fontSize:12,outline:"none",fontFamily:"DM Sans",width:130}}/>
+              <Btn sz="sm" onClick={()=>confirmRoleName(r)}>✓</Btn>
+              <Btn sz="sm" v="ghost" onClick={()=>setEditRole(null)}>✕</Btn>
+            </div>
+          : <div style={{display:"flex",alignItems:"center",gap:4}}>
+              <button onClick={()=>setSelRole(r)} style={{background:selRole===r?"#EEF4FF":"#fff",border:`1.5px solid ${selRole===r?"var(--bl)":"#DDE3EE"}`,color:selRole===r?"var(--bl)":"var(--mu)",borderRadius:9,padding:"8px 14px",fontSize:13,fontWeight:600,cursor:"pointer",boxShadow:"var(--shadow)"}}>
+                {roleNames[r]||r}
+              </button>
+              <button onClick={()=>{setEditRole(r);setEditRoleVal(roleNames[r]||r);}}
+                style={{background:"transparent",border:"none",color:"var(--mu2)",cursor:"pointer",fontSize:13,padding:"2px 4px"}} title="Renomear perfil">✏️</button>
+            </div>}
       </div>;})}
     </div>
     <div style={{background:"#fff",borderRadius:16,padding:20,border:"1px solid var(--b)",marginBottom:16,boxShadow:"var(--shadow)"}}>
@@ -2042,6 +2082,13 @@ function UsersPage(){
   const EDGE = "https://odegosowuketirxdgllb.supabase.co/functions/v1/manage-users";
   const[users,setUsers]=useState([]);
   const[loading,setLoading]=useState(true);
+  const[roleNames,setRoleNames]=useState(()=>ROLES.reduce((a,r)=>({...a,[r]:r}),{}));
+
+  // Carrega nomes customizados de perfis
+  useEffect(()=>{
+    supabase.from("settings").select("value").eq("id","role_names").single()
+      .then(({data})=>{ if(data?.value) setRoleNames(p=>({...p,...data.value})); });
+  },[]);
   const[showF,setShowF]=useState(false);
   const[editing,setEditing]=useState(null);
   const[err,setErr]=useState("");
@@ -2127,7 +2174,7 @@ function UsersPage(){
           <div style={{flex:1,minWidth:0}}>
             <div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}>
               <span style={{fontWeight:700,fontSize:13}}>{u.name||"—"}</span>
-              <Chip color={ROLE_C[u.role]||"var(--mu)"} sm>{u.role}</Chip>
+              <Chip color={ROLE_C[u.role]||"var(--mu)"} sm>{roleNames[u.role]||u.role}</Chip>
               {u.invited&&<Chip color="var(--am)" sm>⏳ Convite pendente</Chip>}
               {!u.active&&<Chip color="var(--rd)" sm>Desativado</Chip>}
             </div>
@@ -2174,7 +2221,7 @@ function UsersPage(){
 
       <Lbl>Perfil de acesso</Lbl>
       <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:14}}>
-        {ROLES.map(r=><button key={r} onClick={()=>ff({role:r})} style={{background:form.role===r?`${ROLE_C[r]||"var(--mu)"}15`:"#F7F9FC",border:`1.5px solid ${form.role===r?ROLE_C[r]||"var(--mu)":"#DDE3EE"}`,color:form.role===r?ROLE_C[r]||"var(--mu)":"var(--mu)",borderRadius:99,padding:"5px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{r}</button>)}
+        {ROLES.map(r=><button key={r} onClick={()=>ff({role:r})} style={{background:form.role===r?`${ROLE_C[r]||"var(--mu)"}15`:"#F7F9FC",border:`1.5px solid ${form.role===r?ROLE_C[r]||"var(--mu)":"#DDE3EE"}`,color:form.role===r?ROLE_C[r]||"var(--mu)":"var(--mu)",borderRadius:99,padding:"5px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{roleNames[r]||r}</button>)}
       </div>
       <div style={{background:"#EEF4FF",borderRadius:9,padding:"8px 12px",fontSize:11,color:"var(--bl)",marginBottom:14}}>
         ℹ As permissões de cada perfil são configuradas na aba <strong>Permissões</strong>.
