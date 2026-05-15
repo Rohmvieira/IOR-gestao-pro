@@ -2123,7 +2123,13 @@ function UsersPage(){
     setSaving(true);setErr("");
     let data;
     if(editing){
-      data=await callEdge({action:"update",userId:editing.id,name:form.name,userRole:form.role,...(form.password?{newPassword:form.password}:{})});
+      // Update name/role
+      data=await callEdge({action:"update",userId:editing.id,name:form.name,userRole:form.role});
+      // If password was provided, also reset it
+      if(!data.error&&form.password.trim()){
+        const pw=await callEdge({action:"reset_password",userId:editing.id,newPassword:form.password});
+        if(pw.error)data=pw;
+      }
     } else if(mode==="invite"){
       data=await callEdge({action:"invite",email:form.email,name:form.name,userRole:form.role,redirectTo:"https://ior-gestao-pro.vercel.app"});
     } else {
@@ -2185,6 +2191,7 @@ function UsersPage(){
           </div>
           <div style={{display:"flex",gap:6,flexShrink:0}}>
             {u.invited&&<button onClick={()=>resendInvite(u)} style={{background:"#FFFBEB",border:"1.5px solid #FDE68A",borderRadius:9,padding:"5px 10px",fontSize:11,color:"var(--am)",cursor:"pointer",fontFamily:"DM Sans",fontWeight:600}} title="Reenviar e-mail de convite">✉ Reenviar</button>}
+            {u.invited&&<button onClick={()=>{setForm({name:u.name,email:u.email,password:"",role:u.role});setEditing(u);setErr("");setShowF(true);}} style={{background:"#EEF4FF",border:"1.5px solid #C7D7F5",borderRadius:9,padding:"5px 10px",fontSize:11,color:"var(--bl)",cursor:"pointer",fontFamily:"DM Sans",fontWeight:600}} title="Definir senha para contornar convite">🔑 Def. senha</button>}
             <Btn sz="sm" v="ghost" onClick={()=>{setForm({name:u.name,email:u.email,password:"",role:u.role});setEditing(u);setErr("");setShowF(true);}}>✏️</Btn>
             <button onClick={()=>toggleActive(u)} style={{background:u.active?"#FEF2F2":"#F0FDF4",border:`1.5px solid ${u.active?"#FECACA":"#BBF7D0"}`,borderRadius:9,padding:"5px 10px",fontSize:11,color:u.active?"var(--rd)":"var(--gn)",cursor:"pointer",fontFamily:"DM Sans",fontWeight:600}}>
               {u.active?"Desativar":"Reativar"}
@@ -2212,12 +2219,12 @@ function UsersPage(){
       {!editing&&<div style={{background:mode==="invite"?"#EEF4FF":"#F7F9FC",borderRadius:9,padding:"8px 12px",fontSize:11,color:mode==="invite"?"var(--bl)":"var(--mu)",marginBottom:12,lineHeight:1.5}}>
         {mode==="invite"
           ? "✉ A usuária receberá um e-mail com link para criar a própria senha. Mais seguro e profissional."
-          : "🔑 Você define a senha agora. Lembre de comunicá-la à usuária com segurança."}
+          : "🔑 Você define a senha agora. A usuária já pode logar com email + senha imediatamente."}
       </div>}
 
       <Inp label="Nome completo *" value={form.name} onChange={e=>ff({name:e.target.value})} placeholder="Ex: Ana Lima"/>
       {!editing&&<Inp label="E-mail *" value={form.email} onChange={e=>ff({email:e.target.value})} type="email" placeholder="ana@iorreflexologia.com"/>}
-      {(mode==="password"||editing)&&<Inp label={editing?"Nova senha (deixe em branco para manter)":"Senha *"} value={form.password} onChange={e=>ff({password:e.target.value})} type="password" placeholder="Mínimo 8 caracteres"/>}
+      {(mode==="password"||editing)&&<Inp label={editing&&editing.invited?"⚠ Definir senha (contorna o convite pendente)":editing?"Nova senha (deixe em branco para manter)":"Senha *"} value={form.password} onChange={e=>ff({password:e.target.value})} type="password" placeholder="Mínimo 8 caracteres"/>}
 
       <Lbl>Perfil de acesso</Lbl>
       <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:14}}>
