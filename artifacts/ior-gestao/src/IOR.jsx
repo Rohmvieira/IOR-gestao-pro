@@ -1861,7 +1861,28 @@ export default function IOR({ user, role = "Assistente", isAdmin = false, isDev 
   </div>;
 
 
-  function pageOrBlock(id, el){
+
+
+
+  // ── Permissions helpers (defined BEFORE pages to avoid TDZ)
+  const PAGE_TO_MODULE = {
+    dash:"Dashboard", crm:"CRM Leads", produtos:"CRM Produtos",
+    alunos:"Alunos", cursos:"Cursos", fin:"Financeiro",
+    check:"Checklist", wa:"WA Lembretes", ped:"Painel Pedagógico",
+    social:"Social", perms:"Permissões",
+  };
+
+  const canAccess = (navId) => {
+    if(isAdmin) return true;
+    if(isDev)   return false;
+    const mod = PAGE_TO_MODULE[navId];
+    if(!mod) return false;
+    if(!permsDB) return true;
+    const rolePerms = (permsDB && permsDB[role]) || {};
+    return !!rolePerms[mod];
+  };
+
+  const pageOrBlock = (id, el) => {
     if(isAdmin) return el;
     if(!canAccess(id)) return <div style={{padding:"48px 24px",textAlign:"center",color:"var(--mu)",fontFamily:"DM Sans"}}>
       <div style={{fontSize:40,marginBottom:12}}>🔒</div>
@@ -1869,7 +1890,13 @@ export default function IOR({ user, role = "Assistente", isAdmin = false, isDev 
       <div style={{fontSize:13}}>Você não tem permissão para acessar este módulo.</div>
     </div>;
     return el;
-  }
+  };
+
+  const visibleNav = NAV.filter(n => {
+    if(n.devOnly)   return isDev;
+    if(n.adminOnly) return isAdmin;
+    return canAccess(n.id);
+  });
 
   const pages={
     dash:    pageOrBlock("dash",    <DashPage     leads={leads} students={students} courses={courses} sales={sales}/>),
@@ -1887,29 +1914,7 @@ export default function IOR({ user, role = "Assistente", isAdmin = false, isDev 
     devpanel:isDev   ? <DevPage/>   : null,
     users:   isAdmin ? <UsersPage/> : null,
   };
-  // Mapa: page id → nome do módulo nas permissões
-  const PAGE_TO_MODULE = {
-    dash:"Dashboard", crm:"CRM Leads", produtos:"CRM Produtos",
-    alunos:"Alunos", cursos:"Cursos", fin:"Financeiro",
-    check:"Checklist", wa:"WA Lembretes", ped:"Painel Pedagógico",
-    social:"Social Media", perms:"Permissões",
-  };
 
-  function canAccess(navId){
-    if(isAdmin) return true;          // Proprietária acessa tudo
-    if(isDev)   return false;          // Dev usa painel próprio
-    const mod = PAGE_TO_MODULE[navId];
-    if(!mod) return false;             // Módulo desconhecido = bloqueado
-    if(!permsDB) return true;          // Sem config no banco = libera tudo
-    const rolePerms = permsDB[role] || {};
-    return !!rolePerms[mod];
-  }
-
-  const visibleNav = NAV.filter(n => {
-    if(n.devOnly)   return isDev;
-    if(n.adminOnly) return isAdmin;
-    return canAccess(n.id);
-  });
 
   return <>
     <GS/>
