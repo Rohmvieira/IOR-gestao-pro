@@ -1,0 +1,51 @@
+name: Build Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build frontend
+        run: pnpm --filter @workspace/ior-gestao run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+      - name: Check for duplicate symbols
+        run: |
+          node --input-type=module << 'JS'
+          import { readFileSync } from 'fs';
+          import { execSync } from 'child_process';
+          
+          // Build succeeded — check bundle for known TDZ patterns
+          const built = execSync('ls artifacts/ior-gestao/dist/assets/*.js').toString().trim().split('\n');
+          let ok = true;
+          for (const file of built) {
+            const content = readFileSync(file, 'utf8');
+            if (content.includes('Cannot access') && content.includes('before initialization')) {
+              console.error('TDZ pattern detected in bundle:', file);
+              ok = false;
+            }
+          }
+          if (ok) console.log('✅ Bundle check passed');
+          else process.exit(1);
+          JS
