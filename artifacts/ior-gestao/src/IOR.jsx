@@ -1753,7 +1753,53 @@ const NAV=[
 ];
 const BOT=[{id:"dash",icon:"⬡",lbl:"Início"},{id:"crm",icon:"◈",lbl:"CRM"},{id:"cursos",icon:"❋",lbl:"Cursos"},{id:"fin",icon:"◆",lbl:"Financ."},{id:"__m__",icon:"☰",lbl:"Mais"}];
 
-function SDDesk({active,setActive,students,courses,checks,nav=NAV,signOut}){
+
+/* ══════════════════════════════════════════════════
+   Modal: Alterar senha do usuário logado
+══════════════════════════════════════════════════ */
+function ChangePasswordModal({onClose}){
+  const[curr,setCurr]=useState("");
+  const[next,setNext]=useState("");
+  const[conf,setConf]=useState("");
+  const[err,setErr]=useState("");
+  const[ok,setOk]=useState(false);
+  const[loading,setLoading]=useState(false);
+
+  async function save(){
+    setErr("");
+    if(!next.trim()||!conf.trim()){setErr("Preencha todos os campos.");return;}
+    if(next.length<8){setErr("Senha deve ter pelo menos 8 caracteres.");return;}
+    if(next!==conf){setErr("As senhas não coincidem.");return;}
+    setLoading(true);
+    const{error}=await supabase.auth.updateUser({password:next});
+    setLoading(false);
+    if(error){setErr(error.message||"Erro ao alterar senha.");return;}
+    setOk(true);
+    setTimeout(()=>onClose(),2000);
+  }
+
+  return <Modal title="Alterar Senha" onClose={onClose}>
+    {ok
+      ? <div style={{textAlign:"center",padding:"24px 0"}}>
+          <div style={{fontSize:40,marginBottom:8}}>✅</div>
+          <div style={{fontWeight:600,color:"var(--gn)"}}>Senha alterada com sucesso!</div>
+        </div>
+      : <>
+          {err&&<div style={{background:"#FEF2F2",border:"1.5px solid #FECACA",borderRadius:9,padding:"8px 12px",fontSize:12,color:"var(--rd)",marginBottom:12,fontWeight:600}}>{err}</div>}
+          <Inp label="Nova senha *" value={next} onChange={e=>setNext(e.target.value)} type="password" placeholder="Mínimo 8 caracteres"/>
+          <Inp label="Confirmar nova senha *" value={conf} onChange={e=>setConf(e.target.value)} type="password" placeholder="Repita a nova senha"/>
+          <div style={{background:"#EEF4FF",borderRadius:9,padding:"8px 12px",fontSize:11,color:"var(--bl)",marginBottom:14,lineHeight:1.5}}>
+            💡 Use letras e números. Você continuará logado após a troca.
+          </div>
+          <Btn style={{width:"100%"}} onClick={save} disabled={loading}>
+            {loading?"Salvando…":"🔒 Alterar senha"}
+          </Btn>
+        </>
+    }
+  </Modal>;
+}
+
+function SDDesk({active,setActive,students,courses,checks,nav=NAV,signOut,onChangePw}){
   const[col,setCol]=useState(false);
   return <div className={`sd ${col?"c":"e"}`}>
     <div style={{display:"flex",alignItems:"center",justifyContent:col?"center":"space-between",marginBottom:26}}>
@@ -1770,12 +1816,13 @@ function SDDesk({active,setActive,students,courses,checks,nav=NAV,signOut}){
     </nav>
     {!col&&<div style={{borderTop:"1px solid var(--b)",paddingTop:11,paddingLeft:5}}>
       <div style={{fontSize:9,color:"var(--mu)",lineHeight:1.5}}>IOR · Gestão Pro<br/><span style={{color:"var(--bl)",fontWeight:600}}>v2025</span></div>
-      <button onClick={()=>signOut?.()} style={{marginTop:8,background:"#FEF2F2",border:"1.5px solid #FECACA",borderRadius:8,padding:"5px 10px",fontSize:11,color:"var(--rd)",cursor:"pointer",fontFamily:"DM Sans",fontWeight:600,width:"100%"}}>Sair</button>
+      <button onClick={()=>onChangePw?.()} style={{marginTop:8,background:"#F7F9FC",border:"1.5px solid #DDE3EE",borderRadius:8,padding:"5px 10px",fontSize:11,color:"var(--mu)",cursor:"pointer",fontFamily:"DM Sans",fontWeight:600,width:"100%"}}>🔒 Alterar senha</button>
+      <button onClick={()=>signOut?.()} style={{marginTop:6,background:"#FEF2F2",border:"1.5px solid #FECACA",borderRadius:8,padding:"5px 10px",fontSize:11,color:"var(--rd)",cursor:"pointer",fontFamily:"DM Sans",fontWeight:600,width:"100%"}}>Sair</button>
     </div>}
   </div>;
 }
 
-function SDMob({active,setActive,open,onClose,students,courses,checks,nav=NAV,signOut}){
+function SDMob({active,setActive,open,onClose,students,courses,checks,nav=NAV,signOut,onChangePw}){
   return <>
     <div className={`ov ${open?"op":""}`} onClick={onClose}/>
     <div className={`dr ${open?"op":""}`}>
@@ -1820,6 +1867,7 @@ export default function IOR({ user, role = "Assistente", isAdmin = false, isDev 
   const[templates,setTemplates]=useState([]);
   const[socialMetrics,setSocialMetrics]=useState([]);
   const[drawer,setDrawer]     = useState(false);
+  const[showPwModal,setShowPwModal] = useState(false);
   const[loading,setLoading]   = useState(true);
   const[loadErr,setLoadErr]   = useState(null);
   const curr=NAV.find(n=>n.id===page);
@@ -1919,8 +1967,8 @@ export default function IOR({ user, role = "Assistente", isAdmin = false, isDev 
   return <>
     <GS/>
     <div style={{display:"flex",height:"100vh",overflow:"hidden",background:"var(--bg)"}}>
-      <SDDesk active={page} setActive={setPage} students={students} courses={courses} checks={checks} nav={visibleNav} signOut={signOut}/>
-      <SDMob  active={page} setActive={setPage} open={drawer} onClose={()=>setDrawer(false)} students={students} courses={courses} checks={checks} nav={visibleNav} signOut={signOut}/>
+      <SDDesk active={page} setActive={setPage} students={students} courses={courses} checks={checks} nav={visibleNav} signOut={signOut} onChangePw={()=>setShowPwModal(true)}/>
+      <SDMob  active={page} setActive={setPage} open={drawer} onClose={()=>setDrawer(false)} students={students} courses={courses} checks={checks} nav={visibleNav} signOut={signOut} onChangePw={()=>setShowPwModal(true)}/>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
         <div className="mob" style={{flexShrink:0,height:48,background:"#fff",borderBottom:"1px solid var(--b)",alignItems:"center",justifyContent:"space-between",padding:"0 16px",boxShadow:"0 2px 8px rgba(30,40,80,.07)"}}>
           <button onClick={()=>setDrawer(true)} style={{background:"transparent",border:"none",color:"var(--mu)",fontSize:20,cursor:"pointer"}}>☰</button>
@@ -1932,6 +1980,7 @@ export default function IOR({ user, role = "Assistente", isAdmin = false, isDev 
         </main>
       </div>
       <BotNav active={page} setActive={setPage} onMenu={()=>setDrawer(true)} nav={visibleNav}/>
+      {showPwModal&&<ChangePasswordModal onClose={()=>setShowPwModal(false)}/>}
     </div>
   </>;
 }
