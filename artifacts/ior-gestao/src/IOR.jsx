@@ -35,8 +35,231 @@ function BtnExport({ onClick, label = "📊 Exportar Excel" }) {
 }
 
 /* ══════════════════════════════════════════════════
-   GLOBAL STYLES
+   IMPORTAÇÃO EXCEL — template + parse + insert
 ══════════════════════════════════════════════════ */
+
+// Templates de importação por tipo
+const IMPORT_TEMPLATES = {
+  alunos: {
+    label:"Alunos",
+    cols:[
+      "Nome *","Email","Telefone","CPF","Cidade","Desde (AAAA-MM-DD)",
+      "Tipo pgto (avista/parcelado)","Método pgto (PIX/Cartão Crédito/Cartão Débito/Boleto/Transferência)",
+      "Valor total (R$)","Parcelas","Dia pagamento","Mês início (AAAA-MM)",
+      "Quitado (Sim/Não)","Notas"
+    ],
+    exemplo:{
+      "Nome *":"Maria Silva","Email":"maria@email.com","Telefone":"11999999999",
+      "CPF":"000.000.000-00","Cidade":"São Paulo","Desde (AAAA-MM-DD)":"2024-01-15",
+      "Tipo pgto (avista/parcelado)":"parcelado",
+      "Método pgto (PIX/Cartão Crédito/Cartão Débito/Boleto/Transferência)":"PIX",
+      "Valor total (R$)":"1200","Parcelas":"12","Dia pagamento":"10",
+      "Mês início (AAAA-MM)":"2024-01","Quitado (Sim/Não)":"Não","Notas":""
+    },
+    parse:(row)=>({
+      name:      row["Nome *"]?.toString().trim()||"",
+      email:     row["Email"]?.toString().trim()||"",
+      phone:     row["Telefone"]?.toString().trim()||"",
+      cpf:       row["CPF"]?.toString().trim()||"",
+      city:      row["Cidade"]?.toString().trim()||"",
+      since:     row["Desde (AAAA-MM-DD)"]?.toString().trim()||"",
+      pType:     row["Tipo pgto (avista/parcelado)"]?.toString().toLowerCase()==="parcelado"?"parcelado":"avista",
+      pMethod:   row["Método pgto (PIX/Cartão Crédito/Cartão Débito/Boleto/Transferência)"]?.toString().trim()||"PIX",
+      totalValue:Math.round((parseFloat(row["Valor total (R$)"])||0)*100),
+      installments: parseInt(row["Parcelas"])||0,
+      payDay:    row["Dia pagamento"]?.toString().trim()||null,
+      startMonth:row["Mês início (AAAA-MM)"]?.toString().trim()||"",
+      paid:      row["Quitado (Sim/Não)"]?.toString().toLowerCase()==="sim",
+      notes:     row["Notas"]?.toString().trim()||"",
+      courses:[], paidMonths:[], certificate:[], interests:[], enrollmentDates:{}, pedDocs:{},
+    }),
+    validate:(r)=>r.name?"":r,
+  },
+  cursos:{
+    label:"Cursos",
+    cols:[
+      "Nome *","Tipo (Curso/Workshop/Estágio/Ambulatório)",
+      "Data início (AAAA-MM-DD)","Data fim (AAAA-MM-DD)",
+      "Modalidade (Presencial/Online/Híbrido)","Valor (R$)","Vagas","Instrutor","Descrição"
+    ],
+    exemplo:{
+      "Nome *":"Reflexologia dos Pés","Tipo (Curso/Workshop/Estágio/Ambulatório)":"Curso",
+      "Data início (AAAA-MM-DD)":"2024-03-01","Data fim (AAAA-MM-DD)":"2024-06-30",
+      "Modalidade (Presencial/Online/Híbrido)":"Presencial",
+      "Valor (R$)":"1200","Vagas":"20","Instrutor":"Thaís","Descrição":""
+    },
+    parse:(row)=>({
+      name:     row["Nome *"]?.toString().trim()||"",
+      type:     row["Tipo (Curso/Workshop/Estágio/Ambulatório)"]?.toString().trim()||"Curso",
+      date:     row["Data início (AAAA-MM-DD)"]?.toString().trim()||"",
+      end:      row["Data fim (AAAA-MM-DD)"]?.toString().trim()||"",
+      modality: row["Modalidade (Presencial/Online/Híbrido)"]?.toString().trim()||"Presencial",
+      value:    Math.round((parseFloat(row["Valor (R$)"])||0)*100),
+      capacity: parseInt(row["Vagas"])||12,
+      instructor:row["Instrutor"]?.toString().trim()||"",
+      desc:     row["Descrição"]?.toString().trim()||"",
+      enrolled:[], waitlist:[], checklist:[], checklistDeadlines:{},
+    }),
+    validate:(r)=>r.name?"":r,
+  },
+};
+
+async function downloadTemplate(tipo){
+  const tmpl = IMPORT_TEMPLATES[tipo];
+  const XLSX = await import("xlsx");
+  const wb   = XLSX.utils.book_new();
+  // Aba de instruções
+  const instrucoes = [
+    {"INSTRUÇÕES":"Preencha a aba 'Dados' com suas informações. Campos com * são obrigatórios."},
+    {"INSTRUÇÕES":"Não altere os nomes das colunas."},
+    {"INSTRUÇÕES":"Deixe em branco os campos que não tiver. Datas no formato AAAA-MM-DD (ex: 2024-03-15)."},
+  ];
+  const wsInstr = XLSX.utils.json_to_sheet(instrucoes);
+  XLSX.utils.book_append_sheet(wb, wsInstr, "Instruções");
+  // Aba de dados com linha de exemplo
+  const wsData = XLSX.utils.json_to_sheet([tmpl.exemplo]);
+  const cols = tmpl.cols.map(k=>({wch:Math.max(k.length,20)+2}));
+  wsData["!cols"] = cols;
+  XLSX.utils.book_append_sheet(wb, wsData, "Dados");
+  XLSX.writeFile(wb, `template_${tipo}_IOR.xlsx`);
+}
+
+function ImportModal({tipo, onClose, onImported}){
+  const tmpl = IMPORT_TEMPLATES[tipo];
+  const[step,setStep]   = useState("upload"); // upload | preview | done
+  const[rows,setRows]   = useState([]);
+  const[errors,setErrors] = useState([]);
+  const[importing,setImporting] = useState(false);
+  const[progress,setProgress]   = useState(0);
+  const[dragOver,setDragOver]   = useState(false);
+  const fileRef = useRef();
+
+  async function parseFile(file){
+    const XLSX = await import("xlsx");
+    const buf  = await file.arrayBuffer();
+    const wb   = XLSX.read(buf);
+    // Tenta aba "Dados" primeiro, senão usa a primeira
+    const sheetName = wb.SheetNames.includes("Dados") ? "Dados" : wb.SheetNames[0];
+    const ws   = wb.Sheets[sheetName];
+    const raw  = XLSX.utils.sheet_to_json(ws,{defval:""});
+    if(!raw.length){setErrors(["Planilha vazia ou sem dados na aba 'Dados'."]);return;}
+    const parsed=[], errs=[];
+    raw.forEach((row,i)=>{
+      const obj = tmpl.parse(row);
+      if(!obj.name){errs.push(`Linha ${i+2}: campo "Nome *" é obrigatório.`);}
+      else parsed.push(obj);
+    });
+    setErrors(errs);
+    setRows(parsed);
+    if(parsed.length) setStep("preview");
+  }
+
+  async function handleFile(file){
+    if(!file) return;
+    if(!file.name.match(/\.(xlsx|xls|csv)$/i)){
+      setErrors(["Formato inválido. Use .xlsx, .xls ou .csv"]);return;
+    }
+    setErrors([]);
+    await parseFile(file);
+  }
+
+  async function doImport(){
+    setImporting(true);setProgress(0);
+    const table = tipo==="alunos" ? "students" : "courses";
+    let done=0;
+    for(const row of rows){
+      await db[table==="students"?"students":"courses"].insert(row);
+      done++;
+      setProgress(Math.round(done/rows.length*100));
+    }
+    setStep("done");
+    setImporting(false);
+    onImported();
+  }
+
+  return <Modal title={`Importar ${tmpl.label}`} onClose={onClose}>
+    {/* Botão template sempre visível */}
+    <button onClick={()=>downloadTemplate(tipo)} style={{width:"100%",background:"#EEF4FF",border:"1.5px solid #C7D7F5",borderRadius:9,padding:"10px",fontSize:13,color:"var(--bl)",cursor:"pointer",fontFamily:"DM Sans",fontWeight:700,marginBottom:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+      📄 Baixar planilha modelo
+    </button>
+
+    {step==="upload"&&<>
+      {errors.length>0&&<div style={{background:"#FEF2F2",border:"1.5px solid #FECACA",borderRadius:9,padding:"10px 12px",fontSize:12,color:"var(--rd)",marginBottom:12}}>
+        {errors.map((e,i)=><div key={i}>{e}</div>)}
+      </div>}
+      {/* Drop zone */}
+      <div
+        onClick={()=>fileRef.current?.click()}
+        onDragOver={e=>{e.preventDefault();setDragOver(true);}}
+        onDragLeave={()=>setDragOver(false)}
+        onDrop={e=>{e.preventDefault();setDragOver(false);handleFile(e.dataTransfer.files[0]);}}
+        style={{border:`2px dashed ${dragOver?"var(--bl)":"#DDE3EE"}`,borderRadius:12,padding:"32px 20px",textAlign:"center",cursor:"pointer",background:dragOver?"#EEF4FF":"#F7F9FC",transition:"all .15s"}}>
+        <div style={{fontSize:32,marginBottom:8}}>📂</div>
+        <div style={{fontSize:13,fontWeight:600,color:"var(--bl)",marginBottom:4}}>Clique ou arraste o arquivo aqui</div>
+        <div style={{fontSize:11,color:"var(--mu)"}}>Formatos aceitos: .xlsx, .xls, .csv</div>
+        <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}} onChange={e=>handleFile(e.target.files[0])}/>
+      </div>
+      <div style={{marginTop:12,fontSize:11,color:"var(--mu)",lineHeight:1.6}}>
+        💡 Baixe a planilha modelo, preencha e importe. Campos em branco serão ignorados.
+      </div>
+    </>}
+
+    {step==="preview"&&<>
+      {errors.length>0&&<div style={{background:"#FEF9C3",border:"1.5px solid #FDE68A",borderRadius:9,padding:"10px 12px",fontSize:11,color:"#92400E",marginBottom:12}}>
+        ⚠ {errors.length} linha(s) com erro serão ignoradas:<br/>
+        {errors.slice(0,3).map((e,i)=><div key={i}>{e}</div>)}
+        {errors.length>3&&<div>... e mais {errors.length-3}</div>}
+      </div>}
+      <div style={{background:"#F0FDF4",border:"1.5px solid #BBF7D0",borderRadius:9,padding:"10px 12px",marginBottom:14,fontSize:13,color:"var(--gn)",fontWeight:600}}>
+        ✓ {rows.length} registro(s) prontos para importar
+      </div>
+      {/* Preview das primeiras linhas */}
+      <div style={{maxHeight:160,overflowY:"auto",marginBottom:14,border:"1px solid var(--b)",borderRadius:9}}>
+        {rows.slice(0,5).map((r,i)=><div key={i} style={{padding:"8px 12px",borderBottom:"1px solid #F0F2F7",fontSize:12,color:"var(--tx)"}}>
+          <strong>{r.name}</strong>
+          {tipo==="alunos"&&r.email&&<span style={{color:"var(--mu)",marginLeft:8}}>{r.email}</span>}
+          {tipo==="cursos"&&r.date&&<span style={{color:"var(--mu)",marginLeft:8}}>{r.date}</span>}
+        </div>)}
+        {rows.length>5&&<div style={{padding:"8px 12px",fontSize:11,color:"var(--mu)"}}>... e mais {rows.length-5} registro(s)</div>}
+      </div>
+      {importing&&<div style={{marginBottom:12}}>
+        <div style={{height:6,background:"#E5EAF3",borderRadius:99,overflow:"hidden"}}>
+          <div style={{height:"100%",background:"var(--bl)",borderRadius:99,width:`${progress}%`,transition:"width .3s"}}/>
+        </div>
+        <div style={{fontSize:11,color:"var(--mu)",textAlign:"center",marginTop:4}}>{progress}% importado…</div>
+      </div>}
+      <div style={{display:"flex",gap:8}}>
+        <Btn v="ghost" onClick={()=>{setStep("upload");setRows([]);setErrors([]);}}>Voltar</Btn>
+        <Btn style={{flex:1}} onClick={doImport} disabled={importing}>
+          {importing?"Importando…":`Importar ${rows.length} registro(s)`}
+        </Btn>
+      </div>
+    </>}
+
+    {step==="done"&&<div style={{textAlign:"center",padding:"24px 0"}}>
+      <div style={{fontSize:48,marginBottom:12}}>✅</div>
+      <div style={{fontFamily:"Playfair Display",fontSize:18,color:"var(--bl)",marginBottom:8}}>Importação concluída!</div>
+      <div style={{fontSize:13,color:"var(--mu)",marginBottom:20}}>{rows.length} registro(s) adicionados com sucesso.</div>
+      <Btn onClick={onClose}>Fechar</Btn>
+    </div>}
+  </Modal>;
+}
+
+function BtnImport({ onClick, label = "📥 Importar" }) {
+  return <button onClick={onClick} style={{
+    display:"flex", alignItems:"center", gap:6,
+    background:"#EEF4FF", border:"1.5px solid #C7D7F5",
+    borderRadius:9, padding:"7px 13px", color:"var(--bl)",
+    fontSize:12, fontWeight:700, cursor:"pointer",
+    fontFamily:"DM Sans", whiteSpace:"nowrap",
+    boxShadow:"0 1px 4px rgba(0,0,0,.06)", transition:"all .15s",
+  }}
+    onMouseEnter={e=>e.currentTarget.style.background="#DBEAFE"}
+    onMouseLeave={e=>e.currentTarget.style.background="#EEF4FF"}
+  >{label}</button>;
+}
+
+
 function GS() {
   return <style>{`
     @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,900;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap');
@@ -597,6 +820,7 @@ function ProductsPage({products,setProducts,sales,setSales}){
    ALUNOS — payDay, filtros, contratos, vencimentos
 ══════════════════════════════════════════════════ */
 function StudentsPage({students,setStudents,courses,sales,setSales,templates}){
+  const[showImportSt,setShowImportSt]=useState(false);
   const[search,setSearch]=useState("");
   const[filterStatus,setFilterStatus]=useState("todos");
   const[filterCourse,setFilterCourse]=useState("");
@@ -640,9 +864,11 @@ function StudentsPage({students,setStudents,courses,sales,setSales,templates}){
   }
   function openWA(st,msg){const p=(st.phone||"").replace(/\D/g,"");if(p&&p.length>=10&&p.length<=13)window.open(`https://wa.me/55${p}?text=${encodeURIComponent(msg)}`,"_blank");else navigator.clipboard.writeText(msg);}
   return <div style={{animation:"up .4s ease"}}>
+    {showImportSt&&<ImportModal tipo="alunos" onClose={()=>setShowImportSt(false)} onImported={async()=>{const d=await db.students.list();setStudents(d);setShowImportSt(false);}}/>}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
       <div><h1 style={{fontFamily:"Playfair Display",fontSize:24,fontWeight:700}}>Alunos</h1><p style={{color:"var(--mu)",fontSize:11,marginTop:2}}>{students.length} cadastrados · {students.filter(isOverdue).length} pendentes · {students.filter(isPaid).length} quitados</p></div>
       <div style={{display:"flex",gap:8}}>
+        <BtnImport onClick={()=>setShowImportSt(true)} label="📥 Importar Alunos"/>
         <BtnExport onClick={()=>{
           const rows=students.map(s=>({
             "Nome":s.name,"E-mail":s.email,"Telefone":s.phone,"Cidade":s.city,
@@ -817,6 +1043,7 @@ function StudentsPage({students,setStudents,courses,sales,setSales,templates}){
    CURSOS — sem data de matrícula + checklistDeadlines
 ══════════════════════════════════════════════════ */
 function CoursesPage({courses,setCourses,students,setStudents}){
+  const[showImportCr,setShowImportCr]=useState(false);
   const[sel,setSel]=useState(null);const[showF,setShowF]=useState(false);const[tab,setTab]=useState("lista");
   const[calM,setCalM]=useState(new Date(2025,2,1));
   const[clInput,setClInput]=useState("");
@@ -838,9 +1065,11 @@ function CoursesPage({courses,setCourses,students,setStudents}){
     setStudents(ss=>ss.map(s=>s.id!==studentId?s:{...s,courses:[...new Set([...(s.courses||[]),courseId])],enrollmentDates:{...(s.enrollmentDates||{}),[courseId]:new Date().toISOString().slice(0,10)}}));
   }
   return <div style={{animation:"up .4s ease"}}>
+    {showImportCr&&<ImportModal tipo="cursos" onClose={()=>setShowImportCr(false)} onImported={async()=>{const d=await db.courses.list();setCourses(d);setShowImportCr(false);}}/>}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
       <div><h1 style={{fontFamily:"Playfair Display",fontSize:24,fontWeight:700}}>Cursos & Calendário</h1><p style={{color:"var(--mu)",fontSize:11}}>{courses.length} eventos</p></div>
       <div style={{display:"flex",gap:7}}>
+        <BtnImport onClick={()=>setShowImportCr(true)} label="📥 Importar Cursos"/>
         <BtnExport onClick={()=>{
           const rows=courses.map(c=>({
             "Nome":c.name,"Tipo":c.type,"Início":c.date,"Fim":c.end,
