@@ -170,26 +170,30 @@ function ImportModal({tipo, onClose, onImported, courses=[]}){
   }
 
   async function doImport(){
-    setImporting(true);setProgress(0);
-    let done=0;
+    setImporting(true);setProgress(0);setErrors([]);
+    let done=0, failed=0;
     for(const row of rows){
-      if(tipo==="alunos"){
-        // Resolve curso pelo nome antes de inserir
-        const {_courseName,...studentData}=row;
-        if(_courseName){
-          const course=courses.find(c=>c.name.toLowerCase().trim()===_courseName.toLowerCase().trim());
-          if(course) studentData.courses=[course.id];
+      try{
+        if(tipo==="alunos"){
+          const {_courseName,...studentData}=row;
+          if(_courseName){
+            const course=courses.find(c=>c.name.toLowerCase().trim()===_courseName.toLowerCase().trim());
+            if(course) studentData.courses=[course.id];
+          }
+          await db.students.insert(studentData);
+        } else {
+          await db.courses.insert(row);
         }
-        await db.students.insert(studentData);
-      } else {
-        await db.courses.insert(row);
+        done++;
+      }catch(e){
+        failed++;
+        console.error("Import row error:",e.message,row);
       }
-      done++;
-      setProgress(Math.round(done/rows.length*100));
+      setProgress(Math.round((done+failed)/rows.length*100));
     }
-    setStep("done");
+    if(failed>0) setErrors([`${failed} registro(s) falharam ao salvar. Verifique os dados e tente novamente.`]);
+    if(done>0){ setStep("done"); onImported(); }
     setImporting(false);
-    onImported();
   }
 
   return <Modal title={`Importar ${tmpl.label}`} onClose={onClose}>

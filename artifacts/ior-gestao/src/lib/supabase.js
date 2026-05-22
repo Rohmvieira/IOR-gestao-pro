@@ -24,7 +24,7 @@ export const fromDB = {
 };
 
 export const toDB = {
-  course:  c => ({ name: c.name, type: c.type, date: c.date, end_date: c.end,
+  course:  c => ({ name: c.name, type: c.type||'Curso', date: c.date||null, end_date: c.end||null,
     modality: c.modality, value: +c.value||0, capacity: +c.capacity||12,
     enrolled: c.enrolled||[], waitlist: c.waitlist||[], instructor: c.instructor||'',
     description: c.desc||'', checklist: c.checklist||[], checklist_deadlines: c.checklistDeadlines||{} }),
@@ -55,14 +55,22 @@ export const toDB = {
 
 /* ══ CRUD genérico ══ */
 async function sbInsert(table, data, mapFrom) {
-  const { data: row, error } = await supabase.from(table).insert(data).select().single();
-  if (error) { console.error(`Insert ${table}:`, error); return null; }
-  return mapFrom ? mapFrom(row) : row;
+  const { data: rows, error } = await supabase.from(table).insert(data).select();
+  if (error) {
+    console.error(`Insert ${table}:`, error.message, error.details, error.hint);
+    throw new Error(error.message || `Erro ao salvar em ${table}`);
+  }
+  const row = Array.isArray(rows) ? rows[0] : rows;
+  return row ? (mapFrom ? mapFrom(row) : row) : null;
 }
+
 async function sbUpdate(table, id, data) {
   const { error } = await supabase.from(table).update(data).eq('id', id);
-  if (error) console.error(`Update ${table} ${id}:`, error);
-  return !error;
+  if (error) {
+    console.error(`Update ${table} ${id}:`, error.message);
+    throw new Error(error.message || `Erro ao atualizar em ${table}`);
+  }
+  return true;
 }
 async function sbDelete(table, id) {
   const { error } = await supabase.from(table).delete().eq('id', id);
