@@ -46,7 +46,7 @@ const IMPORT_TEMPLATES = {
       "Nome *","Email","Telefone","CPF","Cidade","Desde (AAAA-MM-DD)",
       "Tipo pgto (avista/parcelado)","Método pgto (PIX/Cartão Crédito/Cartão Débito/Boleto/Transferência)",
       "Valor total (R$)","Parcelas","Dia pagamento","Mês início (AAAA-MM)",
-      "Quitado (Sim/Não)","Notas"
+      "Quitado (Sim/Não)","Curso (nome exato do curso)","Notas"
     ],
     exemplo:{
       "Nome *":"Maria Silva","Email":"maria@email.com","Telefone":"11999999999",
@@ -54,7 +54,7 @@ const IMPORT_TEMPLATES = {
       "Tipo pgto (avista/parcelado)":"parcelado",
       "Método pgto (PIX/Cartão Crédito/Cartão Débito/Boleto/Transferência)":"PIX",
       "Valor total (R$)":"1200","Parcelas":"12","Dia pagamento":"10",
-      "Mês início (AAAA-MM)":"2024-01","Quitado (Sim/Não)":"Não","Notas":""
+      "Mês início (AAAA-MM)":"2024-01","Quitado (Sim/Não)":"Não","Curso (nome exato do curso)":"","Notas":""
     },
     parse:(row)=>({
       name:      row["Nome *"]?.toString().trim()||"",
@@ -72,6 +72,7 @@ const IMPORT_TEMPLATES = {
       paid:      row["Quitado (Sim/Não)"]?.toString().toLowerCase()==="sim",
       notes:     row["Notas"]?.toString().trim()||"",
       courses:[], paidMonths:[], certificate:[], interests:[], enrollmentDates:{}, pedDocs:{},
+      _courseName: row["Curso (nome exato do curso)"]?.toString().trim()||"",
     }),
     validate:(r)=>r.name?"":r,
   },
@@ -104,19 +105,24 @@ const IMPORT_TEMPLATES = {
   },
 };
 
-async function downloadTemplate(tipo){
+async function downloadTemplate(tipo, courses=[]){
   const tmpl = IMPORT_TEMPLATES[tipo];
   const XLSX = await import("xlsx");
   const wb   = XLSX.utils.book_new();
-  // Aba de instruções
   const instrucoes = [
     {"INSTRUÇÕES":"Preencha a aba 'Dados' com suas informações. Campos com * são obrigatórios."},
     {"INSTRUÇÕES":"Não altere os nomes das colunas."},
     {"INSTRUÇÕES":"Deixe em branco os campos que não tiver. Datas no formato AAAA-MM-DD (ex: 2024-03-15)."},
+    ...(tipo==="alunos"&&courses.length?[{"INSTRUÇÕES":"Cursos disponíveis (copie o nome exato na coluna Curso):"},...courses.map(c=>({"INSTRUÇÕES":` → ${c.name} (${c.date||"sem data"})`}))]:[]),
   ];
   const wsInstr = XLSX.utils.json_to_sheet(instrucoes);
   XLSX.utils.book_append_sheet(wb, wsInstr, "Instruções");
-  // Aba de dados com linha de exemplo
+  if(tipo==="alunos"&&courses.length){
+    const wsCursos = XLSX.utils.json_to_sheet(courses.map(c=>({
+      "Nome do curso":c.name,"Data":c.date||"","Vagas":c.capacity||"","Tipo":c.type||""
+    })));
+    XLSX.utils.book_append_sheet(wb, wsCursos, "Cursos disponíveis");
+  }
   const wsData = XLSX.utils.json_to_sheet([tmpl.exemplo]);
   const cols = tmpl.cols.map(k=>({wch:Math.max(k.length,20)+2}));
   wsData["!cols"] = cols;
@@ -124,7 +130,7 @@ async function downloadTemplate(tipo){
   XLSX.writeFile(wb, `template_${tipo}_IOR.xlsx`);
 }
 
-function ImportModal({tipo, onClose, onImported}){
+function ImportModal({tipo, onClose, onImported, courses=[]}){
   const tmpl = IMPORT_TEMPLATES[tipo];
   const[step,setStep]   = useState("upload"); // upload | preview | done
   const[rows,setRows]   = useState([]);
@@ -165,10 +171,19 @@ function ImportModal({tipo, onClose, onImported}){
 
   async function doImport(){
     setImporting(true);setProgress(0);
-    const table = tipo==="alunos" ? "students" : "courses";
     let done=0;
     for(const row of rows){
-      await db[table==="students"?"students":"courses"].insert(row);
+      if(tipo==="alunos"){
+        // Resolve curso pelo nome antes de inserir
+        const {_courseName,...studentData}=row;
+        if(_courseName){
+          const course=courses.find(c=>c.name.toLowerCase().trim()===_courseName.toLowerCase().trim());
+          if(course) studentData.courses=[course.id];
+        }
+        await db.students.insert(studentData);
+      } else {
+        await db.courses.insert(row);
+      }
       done++;
       setProgress(Math.round(done/rows.length*100));
     }
@@ -179,7 +194,7 @@ function ImportModal({tipo, onClose, onImported}){
 
   return <Modal title={`Importar ${tmpl.label}`} onClose={onClose}>
     {/* Botão template sempre visível */}
-    <button onClick={()=>downloadTemplate(tipo)} style={{width:"100%",background:"#EEF4FF",border:"1.5px solid #C7D7F5",borderRadius:9,padding:"10px",fontSize:13,color:"var(--bl)",cursor:"pointer",fontFamily:"DM Sans",fontWeight:700,marginBottom:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+    <button onClick={()=>downloadTemplate(tipo, courses)} style={{width:"100%",background:"#EEF4FF",border:"1.5px solid #C7D7F5",borderRadius:9,padding:"10px",fontSize:13,color:"var(--bl)",cursor:"pointer",fontFamily:"DM Sans",fontWeight:700,marginBottom:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
       📄 Baixar planilha modelo
     </button>
 
@@ -864,7 +879,7 @@ function StudentsPage({students,setStudents,courses,sales,setSales,templates}){
   }
   function openWA(st,msg){const p=(st.phone||"").replace(/\D/g,"");if(p&&p.length>=10&&p.length<=13)window.open(`https://wa.me/55${p}?text=${encodeURIComponent(msg)}`,"_blank");else navigator.clipboard.writeText(msg);}
   return <div style={{animation:"up .4s ease"}}>
-    {showImportSt&&<ImportModal tipo="alunos" onClose={()=>setShowImportSt(false)} onImported={async()=>{const d=await db.students.list();setStudents(d);setShowImportSt(false);}}/>}
+    {showImportSt&&<ImportModal tipo="alunos" courses={courses} onClose={()=>setShowImportSt(false)} onImported={async()=>{const d=await db.students.list();setStudents(d);setShowImportSt(false);}}/>}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
       <div><h1 style={{fontFamily:"Playfair Display",fontSize:24,fontWeight:700}}>Alunos</h1><p style={{color:"var(--mu)",fontSize:11,marginTop:2}}>{students.length} cadastrados · {students.filter(isOverdue).length} pendentes · {students.filter(isPaid).length} quitados</p></div>
       <div style={{display:"flex",gap:8}}>
