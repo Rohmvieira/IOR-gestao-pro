@@ -1878,50 +1878,67 @@ function SocialPage({socialMetrics,setSocialMetrics}){
       </Modal>}
     </div>}
 
-    {showForm&&<Modal title={editing?"Editar Postagem":"Nova Postagem"} onClose={()=>{setShowForm(false);setEditing(null);}} wide>
-      <div className="g2"><Inp label="Data *" value={form.date} onChange={e=>fp({date:e.target.value})} type="date"/><Inp label="Horário" value={form.time} onChange={e=>fp({time:e.target.value})} type="time"/></div>
-      <Inp label="Título da postagem *" value={form.title||""} onChange={e=>fp({title:e.target.value})} placeholder="Ex: Carrossel Spa dos Pés, Aviso Live + Link..."/>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-        <div>
-          <Lbl>Rede Social</Lbl>
-          <select value={form.network||"Instagram"} onChange={e=>fp({network:e.target.value})} style={{width:"100%",background:"#F7F9FC",border:"1.5px solid #DDE3EE",borderRadius:10,padding:"10px 12px",fontSize:13,color:"var(--tx)",fontFamily:"DM Sans",outline:"none"}}>
-            {SOCIAL_NETS.map(n=><option key={n} value={n}>{NET_ICON[n]} {n}</option>)}
-          </select>
+    {showForm&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:500,display:"flex"}}>
+      <div onClick={()=>{setShowForm(false);setEditing(null);}} style={{position:"absolute",inset:0,background:"rgba(10,20,40,.35)"}}/>
+      <div style={{position:"relative",marginLeft:"auto",width:"min(640px,100vw)",height:"100vh",background:"#fff",boxShadow:"-8px 0 40px rgba(0,0,0,.15)",display:"flex",flexDirection:"column"}}>
+        {/* Header */}
+        <div style={{padding:"20px 28px 0",borderBottom:"1px solid #F0F2F7",position:"sticky",top:0,background:"#fff",zIndex:10}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+              <span style={{fontSize:20}}>{NET_ICON[form.network||"Instagram"]}</span>
+              <span style={{fontSize:11,fontWeight:700,color:NET_COLOR[form.network]||"#9AAAC0",background:`${NET_COLOR[form.network]||"#9AAAC0"}18`,padding:"3px 10px",borderRadius:99}}>{form.network||"Instagram"}</span>
+              {["Rascunho","Programado","Publicado"].map(s=><button key={s} onClick={()=>fp({status:s})} style={{background:form.status===s?`${ST_C[s]}15`:"transparent",border:`1.5px solid ${form.status===s?ST_C[s]:"#DDE3EE"}`,color:form.status===s?ST_C[s]:"var(--mu)",borderRadius:99,padding:"2px 9px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{s}</button>)}
+            </div>
+            <button onClick={()=>{setShowForm(false);setEditing(null);}} style={{background:"#F7F9FC",border:"none",borderRadius:8,width:28,height:28,cursor:"pointer",fontSize:15,color:"var(--mu)",flexShrink:0}}>✕</button>
+          </div>
+          <input value={form.title||""} onChange={e=>fp({title:e.target.value})} placeholder="Título da postagem..."
+            style={{width:"100%",border:"none",outline:"none",fontSize:24,fontWeight:700,fontFamily:"'Playfair Display',serif",color:"#1A2540",paddingBottom:14,background:"transparent",boxSizing:"border-box"}}/>
         </div>
-        <Sel label="Categoria" value={form.category} onChange={e=>fp({category:e.target.value})} options={SOCIAL_CATS}/>
-      </div>
-      <Lbl>Status</Lbl><div style={{display:"flex",gap:7,marginBottom:13}}>{["Rascunho","Programado","Publicado"].map(s=><button key={s} onClick={()=>fp({status:s})} style={{flex:1,background:form.status===s?`${ST_C[s]}15`:"#F7F9FC",border:`1.5px solid ${form.status===s?ST_C[s]:"#DDE3EE"}`,color:form.status===s?ST_C[s]:"var(--mu)",borderRadius:9,padding:"7px 0",fontSize:12,fontWeight:600,cursor:"pointer"}}>{s}</button>)}</div>
-      <Inp label="Legenda *" value={form.caption} onChange={e=>fp({caption:e.target.value})} rows={4} placeholder="Texto da postagem..."/>
-      <Inp label="Hashtags" value={form.hashtags} onChange={e=>fp({hashtags:e.target.value})} rows={2} placeholder="#reflexologia #bemestar..."/>
-      <div style={{marginBottom:14}}>
-        <Lbl>Imagem (cole ou cole a URL)</Lbl>
-        <div style={{display:"flex",gap:8,marginBottom:6}}>
-          <input value={form.imageUrl||""} onChange={e=>fp({imageUrl:e.target.value})} placeholder="https://... ou cole a imagem abaixo" style={{flex:1,background:"#F7F9FC",border:"1.5px solid #DDE3EE",borderRadius:10,padding:"10px 12px",fontSize:13,color:"var(--tx)",fontFamily:"DM Sans",outline:"none"}}/>
+        {/* Propriedades */}
+        <div style={{padding:"12px 28px 0",borderBottom:"1px solid #F0F2F7"}}>
+          {[
+            ["📅 Data",    <input type="date" value={form.date} onChange={e=>fp({date:e.target.value})} style={{border:"none",outline:"none",fontSize:13,color:"var(--tx)",fontFamily:"DM Sans",background:"transparent",cursor:"pointer"}}/>],
+            ["⏰ Horário", <input type="time" value={form.time} onChange={e=>fp({time:e.target.value})} style={{border:"none",outline:"none",fontSize:13,color:"var(--tx)",fontFamily:"DM Sans",background:"transparent",cursor:"pointer"}}/>],
+            ["📱 Rede",    <select value={form.network||"Instagram"} onChange={e=>fp({network:e.target.value})} style={{border:"none",outline:"none",fontSize:13,color:NET_COLOR[form.network]||"var(--tx)",fontFamily:"DM Sans",background:"transparent",cursor:"pointer",fontWeight:600}}>{SOCIAL_NETS.map(n=><option key={n} value={n}>{NET_ICON[n]} {n}</option>)}</select>],
+            ["🏷 Categoria",<select value={form.category} onChange={e=>fp({category:e.target.value})} style={{border:"none",outline:"none",fontSize:13,color:"var(--tx)",fontFamily:"DM Sans",background:"transparent",cursor:"pointer"}}>{SOCIAL_CATS.map(c=><option key={c} value={c}>{c}</option>)}</select>],
+          ].map(([lbl,val])=>(
+            <div key={lbl} style={{display:"flex",alignItems:"center",padding:"5px 0",borderBottom:"1px solid #F7F9FC"}}>
+              <div style={{width:110,fontSize:12,color:"#9AAAC0",fontWeight:600,flexShrink:0}}>{lbl}</div>
+              <div style={{flex:1}}>{val}</div>
+            </div>
+          ))}
+          <div style={{height:12}}/>
         </div>
-        <div
-          onPaste={async e=>{
-            const items=[...e.clipboardData.items];
-            const imgItem=items.find(i=>i.type.startsWith("image/"));
-            if(imgItem){
-              e.preventDefault();
-              const blob=imgItem.getAsFile();
-              const reader=new FileReader();
-              reader.onload=ev=>fp({imageUrl:ev.target.result});
-              reader.readAsDataURL(blob);
-            }
-          }}
-          style={{border:"1.5px dashed #DDE3EE",borderRadius:10,padding:"12px",textAlign:"center",fontSize:12,color:"var(--mu)",cursor:"pointer",background:"#F7F9FC"}}
-          onClick={()=>{}}
-        >
-          📋 Cole uma imagem aqui (Ctrl+V / Cmd+V)
+        {/* Conteúdo scrollável */}
+        <div style={{flex:1,overflowY:"auto",padding:"16px 28px"}}>
+          <div style={{fontSize:10,fontWeight:700,color:"#9AAAC0",textTransform:"uppercase",letterSpacing:.5,marginBottom:6}}>Legenda *</div>
+          <textarea value={form.caption} onChange={e=>fp({caption:e.target.value})} placeholder="Escreva a legenda da postagem..."
+            style={{width:"100%",minHeight:120,border:"1px solid #E5EAF3",borderRadius:10,padding:"12px 14px",fontSize:14,fontFamily:"DM Sans",lineHeight:1.7,color:"var(--tx)",background:"#FAFBFD",outline:"none",resize:"vertical",boxSizing:"border-box",marginBottom:12}}/>
+          <div style={{fontSize:10,fontWeight:700,color:"#9AAAC0",textTransform:"uppercase",letterSpacing:.5,marginBottom:6}}># Hashtags</div>
+          <textarea value={form.hashtags} onChange={e=>fp({hashtags:e.target.value})} placeholder="#reflexologia #bemestar..." rows={2}
+            style={{width:"100%",border:"1px solid #E5EAF3",borderRadius:10,padding:"12px 14px",fontSize:13,fontFamily:"DM Sans",color:"var(--bl)",fontWeight:600,background:"#FAFBFD",outline:"none",resize:"vertical",boxSizing:"border-box",marginBottom:12}}/>
+          <div style={{fontSize:10,fontWeight:700,color:"#9AAAC0",textTransform:"uppercase",letterSpacing:.5,marginBottom:6}}>🖼 Imagem</div>
+          <input value={form.imageUrl||""} onChange={e=>fp({imageUrl:e.target.value})} placeholder="https://..."
+            style={{width:"100%",border:"1px solid #E5EAF3",borderRadius:10,padding:"10px 14px",fontSize:13,fontFamily:"DM Sans",color:"var(--tx)",background:"#FAFBFD",outline:"none",boxSizing:"border-box",marginBottom:8}}/>
+          <div onPaste={async e=>{const items=[...e.clipboardData.items];const img=items.find(i=>i.type.startsWith("image/"));if(img){e.preventDefault();const b=img.getAsFile();const r=new FileReader();r.onload=ev=>fp({imageUrl:ev.target.result});r.readAsDataURL(b);}}}
+            style={{border:"1.5px dashed #DDE3EE",borderRadius:10,padding:"12px",textAlign:"center",fontSize:12,color:"var(--mu)",background:"#F7F9FC",marginBottom:8}}>
+            📋 Cole uma imagem aqui (Ctrl+V / Cmd+V)
+          </div>
+          {form.imageUrl&&<img src={form.imageUrl} alt="" style={{width:"100%",maxHeight:200,objectFit:"cover",borderRadius:10}} onError={e=>e.target.style.display="none"}/>}
+        </div>
+        {/* Footer */}
+        <div style={{padding:"14px 28px",borderTop:"1px solid #F0F2F7",background:"#fff",display:"flex",gap:8,justifyContent:"space-between"}}>
+          <div style={{display:"flex",gap:8}}>
+            {editing&&<button onClick={async()=>{await supabase.from("social_posts").delete().eq("id",editing.id);setPosts(ps=>ps.filter(p=>p.id!==editing.id));setShowForm(false);setEditing(null);}} style={{background:"#FEF2F2",border:"1.5px solid #FECACA",borderRadius:9,padding:"8px 12px",fontSize:12,color:"var(--rd)",cursor:"pointer",fontWeight:600}}>🗑 Excluir</button>}
+            {form.caption&&<button onClick={async()=>{try{await navigator.clipboard.writeText(form.caption+"\n\n"+form.hashtags);}catch{}window.open(`https://www.${(form.network||"instagram").toLowerCase().replace("/x","")}.com/`,"_blank");}} style={{background:`${NET_COLOR[form.network]||"#9AAAC0"}18`,border:`1.5px solid ${NET_COLOR[form.network]||"#9AAAC0"}44`,borderRadius:9,padding:"8px 12px",fontSize:11,color:NET_COLOR[form.network]||"#9AAAC0",cursor:"pointer",fontWeight:700}}>{NET_ICON[form.network]||"📱"} Copiar e abrir</button>}
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>{setShowForm(false);setEditing(null);}} style={{background:"#F7F9FC",border:"1.5px solid #DDE3EE",borderRadius:9,padding:"8px 16px",fontSize:13,color:"var(--mu)",cursor:"pointer"}}>Cancelar</button>
+            <Btn onClick={savePost}>💾 Salvar</Btn>
+          </div>
         </div>
       </div>
-      {form.imageUrl&&<img src={form.imageUrl} alt="preview" style={{width:"100%",maxHeight:180,objectFit:"cover",borderRadius:10,marginBottom:13}} onError={e=>e.target.style.display="none"}/>}
-      <div style={{display:"flex",gap:9,marginBottom:13}}>
-        {form.caption&&<button onClick={async()=>{try{await navigator.clipboard.writeText(form.caption+"\n\n"+form.hashtags);}catch{}if(form.imageUrl){try{const r=await fetch(form.imageUrl);const b=await r.blob();await navigator.clipboard.write([new ClipboardItem({[b.type]:b})]);}catch{try{await navigator.clipboard.writeText(form.imageUrl);}catch{}}}window.open("https://www.instagram.com/","_blank");}} style={{flex:1,background:"linear-gradient(135deg,#E1306C,#833AB4,#405DE6)",border:"none",borderRadius:9,padding:"10px 0",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans"}} title="Copia legenda + imagem e abre Instagram">📸 Copiar Legenda + Imagem e Abrir</button>}
-      </div>
-      <div style={{display:"flex",gap:8}}><Btn style={{flex:1}} onClick={savePost}>{editing?"Salvar":"Programar"}</Btn>{editing&&<Btn v="danger" onClick={()=>{setPosts(ps=>ps.filter(p=>p.id!==editing.id));setShowForm(false);setEditing(null);}}>Excluir</Btn>}</div>
-    </Modal>}
+    </div>}
   </div>;
 }
 
