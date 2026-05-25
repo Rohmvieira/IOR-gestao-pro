@@ -342,6 +342,9 @@ const STATUS_C = {"Aberto":"var(--am)","Em andamento":"var(--bl)","Resolvido":"v
 const MOPT     = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 const MNS      = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const SOCIAL_CATS = ["Reflexologia","Bem-estar","Curso/Workshop","Depoimento","Dica","Evento","Bastidores"];
+const SOCIAL_NETS = ["Instagram","Facebook","LinkedIn","TikTok","YouTube","Pinterest","Twitter/X"];
+const NET_ICON = {Instagram:"📷",Facebook:"👥",LinkedIn:"💼",TikTok:"🎵",YouTube:"▶️",Pinterest:"📌","Twitter/X":"🐦"};
+const NET_COLOR = {Instagram:"#E1306C",Facebook:"#1877F2",LinkedIn:"#0A66C2",TikTok:"#010101",YouTube:"#FF0000",Pinterest:"#E60023","Twitter/X":"#1DA1F2"};
 const SCL  = {"Leads Frios":"#9AAAC0","Negociação":"#C07700","Espera":"#3066BE","Fechado":"#1E8A4C","Perdido":"#D43030"};
 const PCL  = {"Nota Fiscal":"#9AAAC0","Embalar":"#C07700","Pronto":"#2B9E98","Enviado":"#3066BE","Fechado":"#1E8A4C"};
 const TCL  = {"Curso":"#3066BE","Workshop":"#6244B8","Produto":"#2B9E98","Atendimento":"#C07700"};
@@ -1694,6 +1697,13 @@ function PedagogicoPage({students,setStudents,courses}){
 ══════════════════════════════════════════════════ */
 function SocialPage({socialMetrics,setSocialMetrics}){
   const[posts,setPosts]=useState([]);
+  const[loadingPosts,setLoadingPosts]=useState(true);
+  useEffect(()=>{
+    supabase.from("social_posts").select("*").order("date").then(({data})=>{
+      if(data) setPosts(data.map(p=>({...p,imageUrl:p.image_url})));
+      setLoadingPosts(false);
+    });
+  },[]);
   const[tab,setTab]=useState("calendario");
   const[calM,setCalM]=useState(new Date());
   const[showForm,setShowForm]=useState(false);
@@ -1703,14 +1713,25 @@ function SocialPage({socialMetrics,setSocialMetrics}){
   const[aiResult,setAiResult]=useState(null);
   const[showMetricForm,setShowMetricForm]=useState(false);
   const[editingMetric,setEditingMetric]=useState(null);
-  const eP={date:"",time:"12:00",category:SOCIAL_CATS[0],caption:"",hashtags:"",imageUrl:"",status:"Programado"};
+  const eP={title:"",date:"",time:"12:00",network:"Instagram",category:SOCIAL_CATS[0],caption:"",hashtags:"",imageUrl:"",status:"Programado"};
   const[form,setForm]=useState(eP);const fp=v=>setForm(p=>({...p,...v}));
   const eM={month:new Date().toISOString().slice(0,7),totalViews:0,viewsNewFollowers:0,viewsFollowers:0,newFollowers:0,totalFollowers:0,interactions:0,interactionsNewFollowers:0,interactionsFollowers:0,reach:0,impressions:0};
   const[mForm,setMForm]=useState(eM);const fm=v=>setMForm(p=>({...p,...v}));
   const cy=calM.getFullYear(),cm=calM.getMonth();
   const fd=new Date(cy,cm,1).getDay(),dm=new Date(cy,cm+1,0).getDate();
   function postsOnDay(d){const ds=`${cy}-${String(cm+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;return posts.filter(p=>p.date===ds);}
-  function savePost(){if(!form.date||!form.caption)return;if(editing)setPosts(ps=>ps.map(p=>p.id===editing.id?{...form,id:p.id}:p));else setPosts(ps=>[...ps,{...form,id:Date.now()}]);setShowForm(false);setEditing(null);setForm(eP);}
+  async function savePost(){
+    if(!form.date||!form.caption)return;
+    const data={title:form.title||"",date:form.date,time:form.time,network:form.network||"Instagram",category:form.category,status:form.status,caption:form.caption,hashtags:form.hashtags||"",image_url:form.imageUrl||""};
+    if(editing?.id){
+      await supabase.from("social_posts").update(data).eq("id",editing.id);
+      setPosts(ps=>ps.map(p=>p.id===editing.id?{...form,id:p.id}:p));
+    } else {
+      const{data:row}=await supabase.from("social_posts").insert(data).select().single();
+      if(row) setPosts(ps=>[...ps,{...form,id:row.id}]);
+    }
+    setShowForm(false);setEditing(null);setForm(eP);
+  }
   async function saveMetric(){if(!mForm.month)return;if(editingMetric){setSocialMetrics(ms=>ms.map(m=>m.id===editingMetric.id?{...mForm,id:m.id}:m));await db.metrics.update(editingMetric.id,mForm);}else{const saved=await db.metrics.insert(mForm);setSocialMetrics(ms=>[...ms,saved||{...mForm,id:Date.now()}]);}setShowMetricForm(false);setEditingMetric(null);setMForm(eM);}
   const sortedMetrics=[...socialMetrics].sort((a,b)=>a.month.localeCompare(b.month));
   const metricsChart=sortedMetrics.slice(-8).map(m=>({mes:MOPT[parseInt(m.month.slice(5,7))-1]+" "+m.month.slice(2,4),Seguidores:+m.totalFollowers,Views:+m.totalViews,Interações:+m.interactions}));
@@ -1738,7 +1759,9 @@ function SocialPage({socialMetrics,setSocialMetrics}){
           {Array.from({length:fd}).map((_,i)=><div key={"e"+i} style={{borderRight:"1px solid var(--b)",borderBottom:"1px solid var(--b)",minHeight:80}}/>)}
           {Array.from({length:dm}).map((_,i)=>{const day=i+1,dps=postsOnDay(day);const isToday=new Date().getDate()===day&&new Date().getMonth()===cm&&new Date().getFullYear()===cy;return <div key={day} style={{borderRight:"1px solid var(--b)",borderBottom:"1px solid var(--b)",minHeight:80,padding:5}}>
             <div style={{width:18,height:18,borderRadius:"50%",background:isToday?"var(--bl)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:600,color:isToday?"#fff":"var(--mu)",marginBottom:2}}>{day}</div>
-            {dps.map(p=><div key={p.id} onClick={()=>{setForm({...p});setEditing(p);setShowForm(true);}} style={{background:`${CAT_C[p.category]||"#9AAAC0"}18`,borderLeft:`2px solid ${CAT_C[p.category]||"#9AAAC0"}`,borderRadius:3,padding:"2px 5px",fontSize:8,fontWeight:600,color:CAT_C[p.category]||"#9AAAC0",marginBottom:1,cursor:"pointer",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{p.time} {p.caption?.slice(0,18)}</div>)}
+            {dps.map(p=><div key={p.id} onClick={()=>{setForm({...p,imageUrl:p.imageUrl||p.image_url||""});setEditing(p);setShowForm(true);}} style={{background:`${NET_COLOR[p.network]||"#9AAAC0"}18`,borderLeft:`3px solid ${NET_COLOR[p.network]||"#9AAAC0"}`,borderRadius:4,padding:"3px 5px",fontSize:9,fontWeight:600,color:NET_COLOR[p.network]||"#9AAAC0",marginBottom:2,cursor:"pointer",overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
+              {NET_ICON[p.network]||"📱"} {p.time} {p.title||p.caption?.slice(0,20)}
+            </div>)}
             <div onClick={()=>{const ds=`${cy}-${String(cm+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;setForm({...eP,date:ds});setEditing(null);setShowForm(true);}} style={{textAlign:"center",fontSize:9,color:"var(--mu2)",cursor:"pointer",marginTop:2,opacity:.6}}>+</div>
           </div>;})}
         </div>
@@ -1758,7 +1781,7 @@ function SocialPage({socialMetrics,setSocialMetrics}){
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             <Btn sz="sm" v="ghost" onClick={()=>{setForm({...p});setEditing(p);setShowForm(true);}}>✏️</Btn>
-            <button onClick={async()=>{try{await navigator.clipboard.writeText(p.caption+"\n\n"+p.hashtags);}catch{}if(p.imageUrl){try{const r=await fetch(p.imageUrl);const b=await r.blob();await navigator.clipboard.write([new ClipboardItem({[b.type]:b})]);}catch{try{await navigator.clipboard.writeText(p.imageUrl);}catch{}}}window.open("https://www.instagram.com/","_blank");}} style={{background:"linear-gradient(135deg,#E1306C,#833AB4,#405DE6)",border:"none",borderRadius:7,padding:"6px 10px",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans"}} title="Copia legenda + imagem e abre Instagram">📸 IG</button>
+            <button onClick={async()=>{try{await navigator.clipboard.writeText(p.caption+"\n\n"+p.hashtags);}catch{}if(p.imageUrl){try{const r=await fetch(p.imageUrl);const b=await r.blob();await navigator.clipboard.write([new ClipboardItem({[b.type]:b})]);}catch{try{await navigator.clipboard.writeText(p.imageUrl);}catch{}}}window.open("https://www.instagram.com/","_blank");}} style={{background:"linear-gradient(135deg,#E1306C,#833AB4,#405DE6)",border:"none",borderRadius:7,padding:"6px 10px",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans"}} title="Copiar e abrir rede social">{NET_ICON[p.network]||"📸"} {p.network||"IG"}</button>
             <Btn sz="sm" v="danger" onClick={()=>setPosts(ps=>ps.filter(x=>x.id!==p.id))}>×</Btn>
           </div>
         </div>
@@ -1857,11 +1880,42 @@ function SocialPage({socialMetrics,setSocialMetrics}){
 
     {showForm&&<Modal title={editing?"Editar Postagem":"Nova Postagem"} onClose={()=>{setShowForm(false);setEditing(null);}} wide>
       <div className="g2"><Inp label="Data *" value={form.date} onChange={e=>fp({date:e.target.value})} type="date"/><Inp label="Horário" value={form.time} onChange={e=>fp({time:e.target.value})} type="time"/></div>
-      <Sel label="Categoria" value={form.category} onChange={e=>fp({category:e.target.value})} options={SOCIAL_CATS}/>
+      <Inp label="Título da postagem *" value={form.title||""} onChange={e=>fp({title:e.target.value})} placeholder="Ex: Carrossel Spa dos Pés, Aviso Live + Link..."/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        <div>
+          <Lbl>Rede Social</Lbl>
+          <select value={form.network||"Instagram"} onChange={e=>fp({network:e.target.value})} style={{width:"100%",background:"#F7F9FC",border:"1.5px solid #DDE3EE",borderRadius:10,padding:"10px 12px",fontSize:13,color:"var(--tx)",fontFamily:"DM Sans",outline:"none"}}>
+            {SOCIAL_NETS.map(n=><option key={n} value={n}>{NET_ICON[n]} {n}</option>)}
+          </select>
+        </div>
+        <Sel label="Categoria" value={form.category} onChange={e=>fp({category:e.target.value})} options={SOCIAL_CATS}/>
+      </div>
       <Lbl>Status</Lbl><div style={{display:"flex",gap:7,marginBottom:13}}>{["Rascunho","Programado","Publicado"].map(s=><button key={s} onClick={()=>fp({status:s})} style={{flex:1,background:form.status===s?`${ST_C[s]}15`:"#F7F9FC",border:`1.5px solid ${form.status===s?ST_C[s]:"#DDE3EE"}`,color:form.status===s?ST_C[s]:"var(--mu)",borderRadius:9,padding:"7px 0",fontSize:12,fontWeight:600,cursor:"pointer"}}>{s}</button>)}</div>
       <Inp label="Legenda *" value={form.caption} onChange={e=>fp({caption:e.target.value})} rows={4} placeholder="Texto da postagem..."/>
       <Inp label="Hashtags" value={form.hashtags} onChange={e=>fp({hashtags:e.target.value})} rows={2} placeholder="#reflexologia #bemestar..."/>
-      <Inp label="URL da Imagem (opcional)" value={form.imageUrl} onChange={e=>fp({imageUrl:e.target.value})} placeholder="https://..."/>
+      <div style={{marginBottom:14}}>
+        <Lbl>Imagem (cole ou cole a URL)</Lbl>
+        <div style={{display:"flex",gap:8,marginBottom:6}}>
+          <input value={form.imageUrl||""} onChange={e=>fp({imageUrl:e.target.value})} placeholder="https://... ou cole a imagem abaixo" style={{flex:1,background:"#F7F9FC",border:"1.5px solid #DDE3EE",borderRadius:10,padding:"10px 12px",fontSize:13,color:"var(--tx)",fontFamily:"DM Sans",outline:"none"}}/>
+        </div>
+        <div
+          onPaste={async e=>{
+            const items=[...e.clipboardData.items];
+            const imgItem=items.find(i=>i.type.startsWith("image/"));
+            if(imgItem){
+              e.preventDefault();
+              const blob=imgItem.getAsFile();
+              const reader=new FileReader();
+              reader.onload=ev=>fp({imageUrl:ev.target.result});
+              reader.readAsDataURL(blob);
+            }
+          }}
+          style={{border:"1.5px dashed #DDE3EE",borderRadius:10,padding:"12px",textAlign:"center",fontSize:12,color:"var(--mu)",cursor:"pointer",background:"#F7F9FC"}}
+          onClick={()=>{}}
+        >
+          📋 Cole uma imagem aqui (Ctrl+V / Cmd+V)
+        </div>
+      </div>
       {form.imageUrl&&<img src={form.imageUrl} alt="preview" style={{width:"100%",maxHeight:180,objectFit:"cover",borderRadius:10,marginBottom:13}} onError={e=>e.target.style.display="none"}/>}
       <div style={{display:"flex",gap:9,marginBottom:13}}>
         {form.caption&&<button onClick={async()=>{try{await navigator.clipboard.writeText(form.caption+"\n\n"+form.hashtags);}catch{}if(form.imageUrl){try{const r=await fetch(form.imageUrl);const b=await r.blob();await navigator.clipboard.write([new ClipboardItem({[b.type]:b})]);}catch{try{await navigator.clipboard.writeText(form.imageUrl);}catch{}}}window.open("https://www.instagram.com/","_blank");}} style={{flex:1,background:"linear-gradient(135deg,#E1306C,#833AB4,#405DE6)",border:"none",borderRadius:9,padding:"10px 0",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans"}} title="Copia legenda + imagem e abre Instagram">📸 Copiar Legenda + Imagem e Abrir</button>}
