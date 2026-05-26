@@ -1766,7 +1766,7 @@ function SocialPage({socialMetrics,setSocialMetrics}){
           </div>;})}
         </div>
       </div>
-      <div style={{display:"flex",gap:9,marginTop:11,flexWrap:"wrap"}}>{Object.entries(CAT_C).map(([t,c])=><div key={t} style={{display:"flex",alignItems:"center",gap:4}}><Dot color={c} size={7}/><span style={{fontSize:10,color:"var(--mu)"}}>{t}</span></div>)}</div>
+      <div style={{display:"flex",gap:10,marginTop:11,flexWrap:"wrap"}}>{SOCIAL_NETS.map(n=><div key={n} style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:10,height:10,borderRadius:"50%",background:NET_COLOR[n],display:"inline-block",flexShrink:0}}/><span style={{fontSize:10,color:"var(--mu)",fontWeight:600}}>{NET_ICON[n]} {n}</span></div>)}</div>
     </>}
 
     {tab==="posts"&&<div style={{display:"flex",flexDirection:"column",gap:9}}>
