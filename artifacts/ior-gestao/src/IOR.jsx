@@ -549,7 +549,7 @@ function DashPage({leads,students,courses,sales}){
   const confirmed=confirmedRevenue(students);
   const open=leads.filter(l=>!["Fechado","Perdido"].includes(l.stage)).length;
   const today=new Date().toISOString().slice(0,10);
-  const nxt=[...courses].sort((a,b)=>a.date.localeCompare(b.date)).find(c=>c.date>=today);
+  const nxt=[...courses].sort((a,b)=>(a.date||String.fromCharCode(9999)).localeCompare(b.date||String.fromCharCode(9999))).find(c=>c.date>=today);
   const monthMap={};
   sales.forEach(s=>{const m=s.date?.slice(0,7);if(!m)return;if(!monthMap[m])monthMap[m]={};monthMap[m][s.type]=(monthMap[m][s.type]||0)+(+s.value||0);});
   const chartData=Object.keys(monthMap).sort().slice(-7).map(m=>({mes:MOPT[parseInt(m.slice(5,7))-1],...monthMap[m]}));
@@ -1125,7 +1125,7 @@ function CoursesPage({courses,setCourses,students,setStudents}){
       </div>
     </div>
     {tab==="lista"?<div style={{display:"flex",flexDirection:"column",gap:9}}>
-      {[...courses].sort((a,b)=>a.date.localeCompare(b.date)).map((c,i)=>{
+      {[...courses].sort((a,b)=>(a.date||String.fromCharCode(9999)).localeCompare(b.date||String.fromCharCode(9999))).map((c,i)=>{
         const enrolled=getEnrolled(c.id);const waitlist=getWaitlist(c.id);const ex=sel?.id===c.id;const full=enrolled.length>=c.capacity;
         const hasDeadlines=Object.keys(c.checklistDeadlines||{}).length>0;
         return <div key={c.id} style={{background:"#fff",borderRadius:14,border:`1.5px solid ${ex?"var(--bl)":"#E5EAF3"}`,borderLeft:`4px solid ${KCL[c.type]||"var(--mu)"}`,overflow:"hidden",animation:`sr .3s ease ${i*.05}s both`,boxShadow:"var(--shadow)"}}>
@@ -1733,7 +1733,7 @@ function SocialPage({socialMetrics,setSocialMetrics}){
     setShowForm(false);setEditing(null);setForm(eP);
   }
   async function saveMetric(){if(!mForm.month)return;if(editingMetric){setSocialMetrics(ms=>ms.map(m=>m.id===editingMetric.id?{...mForm,id:m.id}:m));await db.metrics.update(editingMetric.id,mForm);}else{const saved=await db.metrics.insert(mForm);setSocialMetrics(ms=>[...ms,saved||{...mForm,id:Date.now()}]);}setShowMetricForm(false);setEditingMetric(null);setMForm(eM);}
-  const sortedMetrics=[...socialMetrics].sort((a,b)=>a.month.localeCompare(b.month));
+  const sortedMetrics=[...socialMetrics].sort((a,b)=>(a.month||"").localeCompare(b.month||""));
   const metricsChart=sortedMetrics.slice(-8).map(m=>({mes:MOPT[parseInt(m.month.slice(5,7))-1]+" "+m.month.slice(2,4),Seguidores:+m.totalFollowers,Views:+m.totalViews,Interações:+m.interactions}));
   const IA_TEMPLATES={"Reflexologia":["🌿 Você sabia que a reflexologia pode aliviar tensões acumuladas no dia a dia? Nossos alunos aprendem técnicas que transformam vidas!\n\n#reflexologia #bemestar #saude #metodoIOR","✨ A reflexologia podal conecta corpo e mente. Cada ponto nos pés reflete um órgão, um sistema, uma emoção. Aprenda com referência!\n\n#reflexologiapodal #terapiasholisticas"],"Curso/Workshop":["🎓 Vagas abertas para nosso próximo curso de Reflexologia Podal! Aprenda o Método IOR com instrutoras especializadas.\n\n#cursoreflexologia #metodoIOR #terapia","📚 Quer transformar sua prática? Nosso workshop intensivo está chegando. Inscrições abertas!\n\n#workshop #reflexologiafacial #terapeutaholistica"],"Bem-estar":["💆 Cuidar de si é um ato de amor. A reflexologia equilibra energia, reduz estresse e promove bem-estar completo.\n\n#autocuidado #bemestar #reflexologia","🌸 Quando foi a última vez que você priorizou seu bem-estar? A reflexologia é um caminho gentil para se reconectar.\n\n#bemestar #saúde #reflexologia"],"Depoimento":["⭐ \"A reflexologia mudou minha relação com meu corpo. Aprendi a ouvir os sinais com mais consciência.\" – Aluna IOR\n\n#depoimento #transformacao #reflexologia","🙏 \"Depois do curso, minha prática ficou muito mais segura e eficiente.\" – Terapeuta formada pelo IOR\n\n#resultado #reflexologia #terapeutaholistica"],"Dica":["💡 Pressione suavemente o centro da planta do pé por 30 segundos. Esse ponto estimula energia e vitalidade!\n\n#dica #reflexologia #autocuidado","🌿 Massagear os dedos dos pés pode ajudar a aliviar dores de cabeça. A reflexologia tem respostas para o corpo inteiro!\n\n#dica #reflexologiapodal"],"Evento":["📅 Evento especial chegando! Marque na agenda e não perca essa oportunidade de aprendizado.\n\n#evento #reflexologia #crescimentoprofissional","🗓️ Nossa próxima turma está se formando! Se você sonha em trabalhar com terapias holísticas, esse é o momento.\n\n#turmanova #reflexologia"],"Bastidores":["📸 Bastidores do nosso último curso! Ver nossos alunos em ação é sempre gratificante.\n\n#bastidores #reflexologia #alunos","🎯 Nos preparando para mais uma turma incrível! Os materiais estão prontos, as instrutoras animadas.\n\n#bastidores #preparacao #reflexologia"]};
   async function gerarIA(){if(!aiPrompt.trim())return;setAiLoading(true);setAiResult(null);await new Promise(r=>setTimeout(r,1100));const cat=SOCIAL_CATS.find(c=>aiPrompt.toLowerCase().includes(c.toLowerCase()))||SOCIAL_CATS[Math.floor(Math.random()*SOCIAL_CATS.length)];const opts=IA_TEMPLATES[cat]||IA_TEMPLATES["Reflexologia"];const picked=opts[Math.floor(Math.random()*opts.length)];const [caption,...rest]=picked.split("\n\n");setAiResult({caption:caption.trim(),hashtags:rest.join("\n\n").trim(),category:cat});setAiLoading(false);}
@@ -1771,7 +1771,7 @@ function SocialPage({socialMetrics,setSocialMetrics}){
 
     {tab==="posts"&&<div style={{display:"flex",flexDirection:"column",gap:9}}>
       {posts.length===0&&<div style={{textAlign:"center",padding:"28px 0",color:"var(--mu)",fontSize:12}}>Nenhuma postagem. Crie sua primeira!</div>}
-      {[...posts].sort((a,b)=>a.date.localeCompare(b.date)).map((p,i)=><div key={p.id} style={{background:"#fff",borderRadius:14,padding:"14px 16px",border:"1px solid var(--b)",boxShadow:"var(--shadow)",animation:`sr .3s ease ${i*.04}s both`}}>
+      {[...posts].sort((a,b)=>(a.date||String.fromCharCode(9999)).localeCompare(b.date||String.fromCharCode(9999))).map((p,i)=><div key={p.id} style={{background:"#fff",borderRadius:14,padding:"14px 16px",border:"1px solid var(--b)",boxShadow:"var(--shadow)",animation:`sr .3s ease ${i*.04}s both`}}>
         <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
           {p.imageUrl&&<img src={p.imageUrl} alt="" style={{width:64,height:64,borderRadius:8,objectFit:"cover",flexShrink:0}} onError={e=>e.target.style.display="none"}/>}
           <div style={{flex:1}}>
