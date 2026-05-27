@@ -9,7 +9,7 @@ import DevPage from "./components/DevPage.jsx";
 class ErrorBoundary extends Component<{children:ReactNode},{error:Error|null}> {
   constructor(props:{children:ReactNode}){super(props);this.state={error:null};}
   static getDerivedStateFromError(e:Error){return{error:e};}
-  componentDidCatch(e:Error){if(import.meta.env.DEV)console.error("[IOR]",e);}
+  componentDidCatch(e:Error){console.error("[IOR]",e);}
   render(){
     if(this.state.error){
       return(
@@ -19,7 +19,7 @@ class ErrorBoundary extends Component<{children:ReactNode},{error:Error|null}> {
           <p style={{color:"#6B7A99",fontSize:14,maxWidth:360,marginBottom:24,lineHeight:1.6}}>
             Ocorreu um erro inesperado. Tente recarregar a página.<br/>Se persistir, use o Suporte Dev.
           </p>
-          {import.meta.env.DEV&&<details style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"12px 16px",marginBottom:16,maxWidth:600,textAlign:"left",fontSize:11,fontFamily:"monospace",color:"#7F1D1D"}}><summary style={{cursor:"pointer",fontWeight:600}}>Dev details</summary><pre style={{marginTop:8,whiteSpace:"pre-wrap"}}>{this.state.error.message}</pre></details>}
+          {<details style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"12px 16px",marginBottom:16,maxWidth:600,textAlign:"left",fontSize:11,fontFamily:"monospace",color:"#7F1D1D"}}><summary style={{cursor:"pointer",fontWeight:600}}>Dev details</summary><pre style={{marginTop:8,whiteSpace:"pre-wrap"}}>{this.state.error.message}</pre></details>}
           <button onClick={()=>window.location.reload()} style={{background:"#3066BE",color:"#fff",border:"none",borderRadius:10,padding:"12px 28px",fontSize:14,fontWeight:700,cursor:"pointer"}}>Recarregar</button>
         </div>
       );
