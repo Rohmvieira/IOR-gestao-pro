@@ -1736,7 +1736,51 @@ function SocialPage({socialMetrics,setSocialMetrics}){
   const sortedMetrics=[...socialMetrics].sort((a,b)=>(a.month||"").localeCompare(b.month||""));
   const metricsChart=sortedMetrics.slice(-8).map(m=>({mes:MOPT[parseInt(m.month.slice(5,7))-1]+" "+m.month.slice(2,4),Seguidores:+m.totalFollowers,Views:+m.totalViews,Interações:+m.interactions}));
   const IA_TEMPLATES={"Reflexologia":["🌿 Você sabia que a reflexologia pode aliviar tensões acumuladas no dia a dia? Nossos alunos aprendem técnicas que transformam vidas!\n\n#reflexologia #bemestar #saude #metodoIOR","✨ A reflexologia podal conecta corpo e mente. Cada ponto nos pés reflete um órgão, um sistema, uma emoção. Aprenda com referência!\n\n#reflexologiapodal #terapiasholisticas"],"Curso/Workshop":["🎓 Vagas abertas para nosso próximo curso de Reflexologia Podal! Aprenda o Método IOR com instrutoras especializadas.\n\n#cursoreflexologia #metodoIOR #terapia","📚 Quer transformar sua prática? Nosso workshop intensivo está chegando. Inscrições abertas!\n\n#workshop #reflexologiafacial #terapeutaholistica"],"Bem-estar":["💆 Cuidar de si é um ato de amor. A reflexologia equilibra energia, reduz estresse e promove bem-estar completo.\n\n#autocuidado #bemestar #reflexologia","🌸 Quando foi a última vez que você priorizou seu bem-estar? A reflexologia é um caminho gentil para se reconectar.\n\n#bemestar #saúde #reflexologia"],"Depoimento":["⭐ \"A reflexologia mudou minha relação com meu corpo. Aprendi a ouvir os sinais com mais consciência.\" – Aluna IOR\n\n#depoimento #transformacao #reflexologia","🙏 \"Depois do curso, minha prática ficou muito mais segura e eficiente.\" – Terapeuta formada pelo IOR\n\n#resultado #reflexologia #terapeutaholistica"],"Dica":["💡 Pressione suavemente o centro da planta do pé por 30 segundos. Esse ponto estimula energia e vitalidade!\n\n#dica #reflexologia #autocuidado","🌿 Massagear os dedos dos pés pode ajudar a aliviar dores de cabeça. A reflexologia tem respostas para o corpo inteiro!\n\n#dica #reflexologiapodal"],"Evento":["📅 Evento especial chegando! Marque na agenda e não perca essa oportunidade de aprendizado.\n\n#evento #reflexologia #crescimentoprofissional","🗓️ Nossa próxima turma está se formando! Se você sonha em trabalhar com terapias holísticas, esse é o momento.\n\n#turmanova #reflexologia"],"Bastidores":["📸 Bastidores do nosso último curso! Ver nossos alunos em ação é sempre gratificante.\n\n#bastidores #reflexologia #alunos","🎯 Nos preparando para mais uma turma incrível! Os materiais estão prontos, as instrutoras animadas.\n\n#bastidores #preparacao #reflexologia"]};
-  async function gerarIA(){if(!aiPrompt.trim())return;setAiLoading(true);setAiResult(null);await new Promise(r=>setTimeout(r,1100));const cat=SOCIAL_CATS.find(c=>aiPrompt.toLowerCase().includes(c.toLowerCase()))||SOCIAL_CATS[Math.floor(Math.random()*SOCIAL_CATS.length)];const opts=IA_TEMPLATES[cat]||IA_TEMPLATES["Reflexologia"];const picked=opts[Math.floor(Math.random()*opts.length)];const [caption,...rest]=picked.split("\n\n");setAiResult({caption:caption.trim(),hashtags:rest.join("\n\n").trim(),category:cat});setAiLoading(false);}
+  async function gerarIA(){
+    if(!aiPrompt.trim())return;
+    setAiLoading(true);setAiResult(null);
+    try{
+      const res=await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          model:"claude-sonnet-4-20250514",
+          max_tokens:1000,
+          messages:[{role:"user",content:`Você é especialista em marketing para o Instituto de Reflexologia IOR (Brasil). Gere conteúdo para redes sociais em português brasileiro sobre: "${aiPrompt}".
+
+Responda SOMENTE em JSON válido, sem markdown, sem explicações extras:
+{
+  "titulo": "título curto e chamativo para o post",
+  "legenda": "legenda completa do post (3-5 parágrafos, tom caloroso e profissional, inclua chamada para ação)",
+  "hashtags": "#reflexologia #bemestar [mais 8-12 hashtags relevantes]",
+  "categoria": "uma dessas: Reflexologia|Bem-estar|Curso/Workshop|Depoimento|Dica|Evento|Bastidores",
+  "imagemTermos": "3 termos de busca em inglês para encontrar foto ideal (ex: reflexology massage,feet wellness,relaxation therapy)",
+  "imagemDescricao": "descrição curta da imagem ideal para este post"
+}`}]
+        })
+      });
+      const data=await res.json();
+      const text=data.content?.[0]?.text||"";
+      const clean=text.replace(/```json|```/g,"").trim();
+      const parsed=JSON.parse(clean);
+      setAiResult({
+        titulo:   parsed.titulo||"",
+        caption:  parsed.legenda||"",
+        hashtags: parsed.hashtags||"",
+        category: parsed.categoria||SOCIAL_CATS[0],
+        imagemTermos: parsed.imagemTermos||aiPrompt,
+        imagemDescricao: parsed.imagemDescricao||"",
+      });
+    }catch(e){
+      // Fallback para templates se API falhar
+      const cat=SOCIAL_CATS.find(c=>aiPrompt.toLowerCase().includes(c.toLowerCase()))||SOCIAL_CATS[0];
+      const opts=IA_TEMPLATES[cat]||IA_TEMPLATES["Reflexologia"];
+      const picked=opts[Math.floor(Math.random()*opts.length)];
+      const[caption,...rest]=picked.split("\n\n");
+      setAiResult({titulo:"",caption:caption.trim(),hashtags:rest.join("\n\n").trim(),category:cat,imagemTermos:aiPrompt,imagemDescricao:""});
+    }
+    setAiLoading(false);
+  }
   const CAT_C={"Reflexologia":"var(--te)","Bem-estar":"var(--gn)","Curso/Workshop":"var(--bl)","Depoimento":"var(--pu)","Dica":"var(--am)","Evento":"var(--rd)","Bastidores":"#9AAAC0"};
   const ST_C={"Programado":"var(--bl)","Publicado":"var(--gn)","Rascunho":"var(--am)"};
   return <div style={{animation:"up .4s ease"}}>
@@ -1803,8 +1847,16 @@ function SocialPage({socialMetrics,setSocialMetrics}){
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><div style={{fontFamily:"Playfair Display",fontSize:15,fontWeight:600,color:"var(--pu)"}}>✦ Sugestão</div><Chip color={CAT_C[aiResult.category]||"var(--mu)"}>{aiResult.category}</Chip></div>
         <div style={{background:"#fff",borderRadius:11,padding:14,marginBottom:11,border:"1px solid #DDD0F7"}}><div style={{fontSize:10,color:"var(--pu)",fontWeight:600,textTransform:"uppercase",marginBottom:6}}>Legenda</div><div style={{fontSize:13,color:"var(--tx)",lineHeight:1.7,whiteSpace:"pre-wrap"}}>{aiResult.caption}</div></div>
         {aiResult.hashtags&&<div style={{background:"#fff",borderRadius:11,padding:14,marginBottom:14,border:"1px solid #DDD0F7"}}><div style={{fontSize:10,color:"var(--pu)",fontWeight:600,textTransform:"uppercase",marginBottom:6}}>Hashtags</div><div style={{fontSize:12,color:"var(--bl)",fontWeight:600,lineHeight:1.8}}>{aiResult.hashtags}</div></div>}
+        {aiResult.imagemDescricao&&<div style={{background:"#fff",borderRadius:11,padding:14,marginBottom:11,border:"1px solid #DDD0F7"}}>
+          <div style={{fontSize:10,color:"var(--pu)",fontWeight:600,textTransform:"uppercase",marginBottom:6}}>🖼 Imagem sugerida</div>
+          <div style={{fontSize:12,color:"var(--tx)",marginBottom:10,lineHeight:1.5}}>{aiResult.imagemDescricao}</div>
+          <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+            {aiResult.imagemTermos&&aiResult.imagemTermos.split(",").map((t,i)=><a key={i} href={`https://www.pexels.com/search/${encodeURIComponent(t.trim())}/`} target="_blank" rel="noreferrer" style={{fontSize:11,fontWeight:700,color:"#05A081",background:"#E6F9F4",border:"1.5px solid #B2EAD9",borderRadius:99,padding:"3px 10px",textDecoration:"none"}}>📷 Pexels: {t.trim()}</a>)}
+            {aiResult.imagemTermos&&<a href={`https://unsplash.com/s/photos/${encodeURIComponent(aiResult.imagemTermos.split(",")[0]?.trim()||aiPrompt)}`} target="_blank" rel="noreferrer" style={{fontSize:11,fontWeight:700,color:"#3066BE",background:"#EEF4FF",border:"1.5px solid #C7D7F5",borderRadius:99,padding:"3px 10px",textDecoration:"none"}}>🔍 Unsplash</a>}
+          </div>
+        </div>}
         <div style={{display:"flex",gap:9}}>
-          <Btn v="purple" style={{flex:1}} onClick={()=>{setForm({...eP,caption:aiResult.caption,hashtags:aiResult.hashtags,category:aiResult.category});setEditing(null);setShowForm(true);setTab("calendario");}}>📅 Agendar</Btn>
+          <Btn v="purple" style={{flex:1}} onClick={()=>{setForm({...eP,title:aiResult.titulo||"",caption:aiResult.caption,hashtags:aiResult.hashtags,category:aiResult.category});setEditing(null);setShowForm(true);setTab("calendario");}}>📅 Agendar</Btn>
           <Btn v="ghost" onClick={()=>navigator.clipboard.writeText(aiResult.caption+"\n\n"+aiResult.hashtags)}>📋 Copiar</Btn>
           <Btn v="ghost" onClick={gerarIA}>🔄 Nova</Btn>
         </div>
