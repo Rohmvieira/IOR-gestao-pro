@@ -1167,7 +1167,7 @@ function CoursesPage({courses,setCourses,students,setStudents}){
             </div>
             <div style={{display:"flex",gap:7,marginTop:12}}>
               <Btn sz="sm" v="ghost" onClick={e=>{e.stopPropagation();setForm({...c,checklistDeadlines:c.checklistDeadlines||{}});setShowF(true);}}>Editar</Btn>
-              <Btn sz="sm" v="danger" onClick={e=>{e.stopPropagation();setCourses(cs=>cs.filter(x=>x.id!==c.id));setSel(null);}}>Excluir</Btn>
+              <Btn sz="sm" v="danger" onClick={async e=>{e.stopPropagation();await db.courses.delete(c.id);setCourses(cs=>cs.filter(x=>x.id!==c.id));setSel(null);}}>Excluir</Btn>
             </div>
           </div>}
         </div>;})}
