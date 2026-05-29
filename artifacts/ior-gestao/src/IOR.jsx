@@ -465,7 +465,7 @@ function Btn({children,onClick,v="primary",sz="md",disabled,style}){
 }
 function Modal({title,sub,onClose,children,wide}){
   return <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(20,30,60,.3)",backdropFilter:"blur(6px)",zIndex:300,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
-    <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:"20px 20px 0 0",padding:22,width:"100%",maxWidth:wide?720:560,border:"1px solid var(--b)",borderBottom:"none",animation:"su .25s ease",maxHeight:"92vh",overflowY:"auto",boxShadow:"0 -8px 40px rgba(30,40,80,.18)"}}>
+    <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:"20px 20px 0 0",padding:22,width:"100%",maxWidth:wide?720:560,border:"1px solid var(--b)",borderBottom:"none",animation:"su .25s ease",maxHeight:"min(92vh,92dvh)",overflowY:"auto",boxShadow:"0 -8px 40px rgba(30,40,80,.18)"}}>
       <div style={{width:34,height:4,borderRadius:99,background:"#DDE3EE",margin:"-2px auto 16px"}}/>
       <div style={{display:"flex",justifyContent:"space-between",marginBottom:16}}>
         <div><div style={{fontFamily:"Playfair Display",fontSize:19,fontWeight:700,color:"var(--tx)"}}>{title}</div>{sub&&<div style={{fontSize:12,color:"var(--mu)",marginTop:2}}>{sub}</div>}</div>
@@ -874,15 +874,23 @@ function StudentsPage({students,setStudents,courses,sales,setSales,templates}){
   async function toggleAVistaPaid(stId){let updated;setStudents(ss=>ss.map(s=>{if(s.id!==stId)return s;updated={...s,paid:!s.paid};return updated;}));if(updated)await db.students.update(stId,updated);}
   async function toggleContract(stId){let updated;setStudents(ss=>ss.map(s=>{if(s.id!==stId)return s;updated={...s,contract:!s.contract};return updated;}));if(updated)await db.students.update(stId,updated);}
   async function setContractFile(stId,file){setStudents(ss=>ss.map(s=>s.id!==stId?s:{...s,contractFile:file}));}
-  function enrollCourse(stId,cid,enroll){
+  async function enrollCourse(stId,cid,enroll){
     const course=courses.find(x=>x.id===cid);
-    const enrolled=students.filter(s=>s.courses.includes(cid));
+    const s=students.find(x=>x.id===stId);if(!s)return;
+    const enrolled=students.filter(st=>st.courses.includes(cid));
     if(enroll&&course&&enrolled.length>=course.capacity){
       if(!window.confirm(`Turma lotada (${enrolled.length}/${course.capacity}). Adicionar à lista de espera?`))return;
       return;
     }
-    setStudents(ss=>ss.map(s=>{if(s.id!==stId)return s;const cs=enroll?[...new Set([...s.courses,cid])]:s.courses.filter(x=>x!==cid);const ed={...(s.enrollmentDates||{})};if(enroll)ed[cid]=new Date().toISOString().slice(0,10);else delete ed[cid];return {...s,courses:cs,enrollmentDates:ed};}));
-    if(enroll&&course&&course.value>0){setSales(ss=>[...ss,{id:Date.now(),date:new Date().toISOString().slice(0,10),studentId:stId,desc:course.name,value:course.value,payment:"PIX",type:course.type==="Workshop"?"Workshop":"Curso",notes:"Matrícula direta"}]);}
+    const cs=enroll?[...new Set([...s.courses,cid])]:s.courses.filter(x=>x!==cid);
+    const ed={...(s.enrollmentDates||{})};
+    if(enroll)ed[cid]=new Date().toISOString().slice(0,10);else delete ed[cid];
+    const updated={...s,courses:cs,enrollmentDates:ed};
+    setStudents(ss=>ss.map(x=>x.id!==stId?x:updated));
+    try{await db.students.update(stId,updated);}catch(e){console.error("enrollCourse:",e);}
+    if(enroll&&course&&course.value>0){
+      try{const sale={date:new Date().toISOString().slice(0,10),studentId:stId,desc:course.name,value:course.value,payment:"PIX",type:course.type==="Workshop"?"Workshop":"Curso",notes:"Matrícula direta"};const saved=await db.sales.insert(sale);if(saved)setSales(ss=>[...ss,saved]);}catch(e){console.error("sale:",e);}
+    }
   }
   function openWA(st,msg){const p=(st.phone||"").replace(/\D/g,"");if(p&&p.length>=10&&p.length<=13)window.open(`https://wa.me/55${p}?text=${encodeURIComponent(msg)}`,"_blank");else navigator.clipboard.writeText(msg);}
   return <div style={{animation:"up .4s ease"}}>
@@ -927,7 +935,7 @@ function StudentsPage({students,setStudents,courses,sales,setSales,templates}){
     </div>
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
       {filtered.map((s,i)=>{
-        const live=ls(s.id)||s;const od=isOverdue(live);const pd=isPaid(live);const ex=sel===s.id;
+        const live=ls(s.id)||s;const od=isOverdue(live);const pd=isPaid(live);const ex=sel?.id===s.id;
         const statusColor=pd?"var(--gn)":od?"var(--rd)":"var(--bl)";
         return <div key={s.id} style={{background:"#fff",borderRadius:14,border:`1.5px solid ${ex?"var(--bl)":od?"#FECACA":"#E5EAF3"}`,overflow:"hidden",animation:`sr .3s ease ${i*.04}s both`,boxShadow:"var(--shadow)"}}>
           <div onClick={()=>setSel(x=>x?.id===s.id?null:s)} style={{display:"flex",alignItems:"center",gap:11,padding:"13px 16px",cursor:"pointer"}}>
