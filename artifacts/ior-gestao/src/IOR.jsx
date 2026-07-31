@@ -658,7 +658,20 @@ function CRMPage({leads,setLeads,courses,students,setStudents,sales,setSales}){
   }
   function edit(l){setForm({...l,courseId:l.courseId||""});setEditing(l);setShowF(true);}
   async function del(id){setLeads(ls=>ls.filter(l=>l.id!==id));await db.leads.delete(id);setShowF(false);setEditing(null);}
-  const filtered=leads.filter(l=>!search||(l.name.toLowerCase()+(getCourse(l.courseId)?.name||"")).toLowerCase().includes(search.toLowerCase()));
+  const[filterDate,setFilterDate]=useState("");
+  const[filterStage,setFilterStage]=useState("");
+  const filtered=leads.filter(l=>{
+    const q=search.toLowerCase().trim();
+    const matchSearch=!q||(
+      (l.name||"").toLowerCase().includes(q)||
+      (l.phone||"").replace(/[^0-9]/g,"").includes(q.replace(/[^0-9]/g,""))||
+      (l.phone||"").toLowerCase().includes(q)||
+      (l.email||"").toLowerCase().includes(q)
+    );
+    const matchDate=!filterDate||((l.date||"").startsWith(filterDate));
+    const matchStage=!filterStage||(l.stage===filterStage);
+    return matchSearch&&matchDate&&matchStage;
+  });
   async function onDrop(stage){if(dragId==null)return;const lead=leads.find(l=>l.id===dragId);if(lead){setLeads(ls=>ls.map(l=>l.id===dragId?{...l,stage}:l));await db.leads.update(dragId,{...lead,stage});}setDragId(null);setDragOver(null);}
   return <div style={{animation:"up .4s ease"}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
@@ -687,7 +700,14 @@ function CRMPage({leads,setLeads,courses,students,setStudents,sales,setSales}){
         <Btn sz="sm" onClick={()=>{setForm(eL);setEditing(null);setShowF(true);}}>+ Novo</Btn>
       </div>
     </div>
-    <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍  Buscar lead..." style={{width:"100%",background:"#fff",border:"1.5px solid #DDE3EE",borderRadius:11,padding:"9px 14px",color:"var(--tx)",fontSize:13,outline:"none",fontFamily:"DM Sans",marginBottom:14,boxShadow:"var(--shadow)"}}/>
+    <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+      <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Nome, telefone ou email..." style={{flex:2,minWidth:180,background:"#fff",border:"1.5px solid #DDE3EE",borderRadius:11,padding:"9px 14px",color:"var(--tx)",fontSize:13,outline:"none",fontFamily:"DM Sans",boxShadow:"var(--shadow)"}}/>
+      <input type="month" value={filterDate} onChange={e=>setFilterDate(e.target.value)} style={{flex:1,minWidth:130,background:"#fff",border:"1.5px solid #DDE3EE",borderRadius:11,padding:"9px 12px",color:filterDate?"var(--tx)":"var(--mu)",fontSize:13,outline:"none",fontFamily:"DM Sans",boxShadow:"var(--shadow)"}} title="Filtrar por mês"/>
+      <select value={filterStage} onChange={e=>setFilterStage(e.target.value)} style={{flex:1,minWidth:130,background:"#fff",border:"1.5px solid #DDE3EE",borderRadius:11,padding:"9px 12px",color:"var(--tx)",fontSize:13,outline:"none",fontFamily:"DM Sans",boxShadow:"var(--shadow)"}}>
+        <option value="">Todas etapas</option>
+        {stages.map(s=><option key={s} value={s}>{s}</option>)}
+      </select>
+    </div>
     {view==="kanban"?(
       <div style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:10}}>
         {stages.map(stage=>{
